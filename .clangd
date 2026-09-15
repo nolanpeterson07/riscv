@@ -1,0 +1,4 @@
+CompileFlags:
+  Add:
+    - -I/opt/homebrew/opt/verilator/share/verilator/include
+    - -I/Users/nolanpeterson/programming/verilog/riscv/build/obj_dir
