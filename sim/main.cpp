@@ -1,5 +1,6 @@
 #include "Valu.h"
 #include "Vdecoder.h"
+#include "Vregister.h"
 #include "verilated.h"
 #include <cassert>
 #include <cstdio>
@@ -27,6 +28,29 @@ static void test_decoder(Vdecoder &dut, uint32_t inst, uint32_t opcode, uint32_t
     assert(dut.imm == imm);
 }
 
+static void test_registers(Vregister &dut) {
+    dut.clk = 0;
+    dut.rst_n = 0;
+    dut.eval();
+
+    dut.rst_n = 1;
+    dut.rd_write_en = 1;
+    dut.rd_addr = 1;
+    dut.rd_data = 42;
+    dut.rs1_addr = 1;
+    dut.rs2_addr = 2;
+
+    dut.clk = 1;
+    dut.eval();
+
+    dut.clk = 0;
+    dut.eval();
+
+    printf("register rs1_data=%u rs2_data=%u\n", dut.rs1_data, dut.rs2_data);
+    assert(dut.rs1_data == 42);
+    assert(dut.rs2_data == 0);
+}
+
 int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
 
@@ -39,6 +63,9 @@ int main(int argc, char **argv) {
     test_decoder(decoder, 0xFFF10093, 0x13, 0, 0x7F, 2, 0x1F, 1, (uint32_t)-1);
     // sub x3, x4, x5
     test_decoder(decoder, 0x405201B3, 0x33, 0, 0x20, 4, 5, 3, 0);
+
+    Vregister reg;
+    test_registers(reg);
 
     printf("All tests passed.\n");
     return 0;
