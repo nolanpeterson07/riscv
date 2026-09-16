@@ -1,4 +1,5 @@
 #include "Valu.h"
+#include "Vdecoder.h"
 #include "verilated.h"
 #include "verilated_vcd_c.h"
 #include <cassert>
