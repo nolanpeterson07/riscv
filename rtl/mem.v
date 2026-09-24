@@ -6,6 +6,13 @@ module mem (
     output wire [31:0] data_out
 );
 
+    reg [31:0] memory [0:1023];
 
+    always @(posedge clk) begin
+        if (mem_write)
+            memory[addr[31:2]] <= data_in;
+    end
+
+    assign data_out = memory[addr[31:2]];
 
 endmodule
