@@ -1,10 +1,13 @@
 module main (
     input wire clk,
-    input wire rst_n
+    input wire rst_n,
+
+    output wire [31:0] pc_current_out
 );
 
     wire [31:0] pc_next;
     wire [31:0] pc_current;
+    assign pc_current_out = pc_current;
 
     pc u_pc (
         .clk(clk),
