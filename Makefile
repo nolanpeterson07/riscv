@@ -19,11 +19,22 @@ endif
 
 CXXFLAGS = -Os -I$(VINC) -I$(VINC)/vltstd -I$(OBJ_DIR)/$(TOP)
 
-.PHONY: all sim wave clean compile_commands.json
+# --- RISC-V toolchain ---
+RVAS  = riscv64-unknown-elf-as
+RVLD  = riscv64-unknown-elf-ld
+RVOBJ = riscv64-unknown-elf-objcopy
+RVFLAGS = -march=rv32i -mabi=ilp32
+
+FW_SRC = test.s
+FW_ELF = $(BUILD)/test.elf
+FW_BIN = $(BUILD)/test.bin
+FW_HEX = firmware.hex
+
+.PHONY: all sim wave clean compile_commands.json firmware
 
 all: sim compile_commands.json
 
-sim: $(BUILD)/sim
+sim: $(BUILD)/sim $(FW_HEX)
 	./$(BUILD)/sim
 
 $(BUILD)/sim: $(CPP) $(MAIN_LIB)
@@ -41,8 +52,20 @@ $(MAIN_LIB): $(RTL_SRCS) | $(OBJ_DIR)
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
 
+# --- firmware build: .s -> .elf -> .bin -> firmware.hex ---
+firmware: $(FW_HEX)
+
+$(FW_HEX): $(FW_SRC) | $(BUILD)
+	$(RVAS) $(RVFLAGS) -o $(BUILD)/test.o $(FW_SRC)
+	$(RVLD) -m elf32lriscv -Ttext=0x0 -o $(FW_ELF) $(BUILD)/test.o
+	$(RVOBJ) -O binary $(FW_ELF) $(FW_BIN)
+	xxd -e -g4 -c4 $(FW_BIN) | awk '{print $$2}' > $(FW_HEX)
+
+$(BUILD):
+	mkdir -p $(BUILD)
+
 wave: sim
 	gtkwave $(BUILD)/main.vcd &
 
 clean:
-	rm -rf $(BUILD) *.vcd
+	rm -rf $(BUILD) *.vcd $(FW_HEX)

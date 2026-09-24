@@ -3,8 +3,15 @@
 #include "Vmain.h"
 #include "verilated.h"
 #include "verilated_vcd_c.h"
+#include "Vmain___024root.h"
 
 vluint64_t sim_time = 0;
+
+void print_registers(Vmain* dut) {
+    for (int i = 0; i < 32; i++) {
+        printf("x%-2d = 0x%08x\n", i, dut->rootp->main__DOT__u_register__DOT__registers[i]);
+    }
+}
 
 static void tick(Vmain* dut, VerilatedVcdC* tfp) {
     // rising edge
@@ -45,6 +52,8 @@ int main(int argc, char** argv) {
 
     tfp->close();
     dut->final();
+
+    print_registers(dut.get());
 
     return 0;
 }
