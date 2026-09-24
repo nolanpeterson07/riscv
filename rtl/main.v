@@ -95,6 +95,16 @@ module main (
         .zero(alu_zero)
     );
 
-    assign rd_data = alu_result;
+    wire [31:0] mem_data_out;
+
+    mem u_mem (
+        .clk      (clk),
+        .addr     (alu_result),
+        .data_in  (rs2_data),
+        .mem_write(mem_write),
+        .data_out (mem_data_out)
+    );
+
+    assign rd_data = mem_to_reg ? mem_data_out : alu_result;
 
 endmodule

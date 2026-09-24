@@ -13,6 +13,14 @@ void print_registers(Vmain* dut) {
     }
 }
 
+void print_memory(Vmain* dut) {
+    for (int i = 0; i < 1024; i++) {
+        if (dut->rootp->main__DOT__u_mem__DOT__memory[i] != 0) {
+            printf("%d: 0x%08x\n", i, dut->rootp->main__DOT__u_mem__DOT__memory[i]);
+        }
+    }
+}
+
 static void tick(Vmain* dut, VerilatedVcdC* tfp) {
     // rising edge
     dut->clk = 1;
@@ -54,6 +62,8 @@ int main(int argc, char** argv) {
     dut->final();
 
     print_registers(dut.get());
+
+    print_memory(dut.get());
 
     return 0;
 }
