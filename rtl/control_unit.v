@@ -56,6 +56,26 @@ module control_unit(
                     10'b0000000_111: alu_op = AND;
                 endcase
             end
+
+            I_ARITH: begin
+                alu_src    = 1;
+                reg_write  = 1;
+                mem_write  = 0;
+                mem_to_reg = 0;
+                branch     = 0;
+                jump       = 0;
+
+                case (funct3)
+                    3'b000: alu_op = ADD;   // ADDI
+                    3'b010: alu_op = SLT;   // SLTI
+                    3'b011: alu_op = SLTU;  // SLTIU
+                    3'b100: alu_op = XOR;   // XORI
+                    3'b110: alu_op = OR;    // ORI
+                    3'b111: alu_op = AND;   // ANDI
+                    3'b001: alu_op = SLL;   // SLLI
+                    3'b101: alu_op = funct7[5] ? SRA : SRL;  // SRLI vs SRAI, bit 30 selects
+                endcase
+            end
         endcase
     end
 
