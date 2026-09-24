@@ -46,10 +46,17 @@ module control_unit(
                 case ({funct7, funct3})
                     10'b0000000_000: alu_op = ADD;
                     10'b0100000_000: alu_op = SUB;
+                    10'b0000000_001: alu_op = SLL;
+                    10'b0000000_010: alu_op = SLT;
+                    10'b0000000_011: alu_op = SLTU;
+                    10'b0000000_100: alu_op = XOR;
+                    10'b0000000_101: alu_op = SRL;
+                    10'b0100000_101: alu_op = SRA;
+                    10'b0000000_110: alu_op = OR;
+                    10'b0000000_111: alu_op = AND;
                 endcase
             end
         endcase
-
     end
 
 endmodule
