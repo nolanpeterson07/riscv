@@ -124,6 +124,36 @@ module control_unit(
                     3'b111: alu_op = SLTU;  // BGEU
                 endcase
             end
+
+            U_LUI: begin
+                alu_src    = 1;
+                reg_write  = 1;
+                mem_write  = 0;
+                mem_to_reg = 0;
+                branch     = 0;
+                jump       = 0;
+                alu_op     = ADD;
+            end
+
+            U_AUIPC: begin
+                alu_src    = 1;
+                reg_write  = 1;
+                mem_write  = 0;
+                mem_to_reg = 0;
+                branch     = 0;
+                jump       = 0;
+                alu_op     = ADD;
+            end
+
+            J_JAL: begin
+                alu_src    = 0;    // dont care
+                reg_write  = 1;
+                mem_write  = 0;
+                mem_to_reg = 0;
+                branch     = 0;
+                jump       = 1;
+                alu_op     = ADD;  // dont care
+            end
         endcase
     end
 
