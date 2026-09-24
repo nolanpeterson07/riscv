@@ -96,6 +96,16 @@ module control_unit(
                 jump       = 1;
                 alu_op     = ADD;
             end
+
+            S_TYPE: begin
+                alu_src    = 1;
+                reg_write  = 0;
+                mem_write  = 1;
+                mem_to_reg = 0;
+                branch     = 0;
+                jump       = 0;
+                alu_op     = ADD;
+            end
         endcase
     end
 
