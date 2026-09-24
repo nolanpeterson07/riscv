@@ -86,6 +86,16 @@ module control_unit(
                 jump       = 0;
                 alu_op     = ADD; // All of these load values, all are add. No need for case
             end
+
+            I_JALR: begin
+                alu_src    = 1;
+                reg_write  = 1;
+                mem_write  = 0;
+                mem_to_reg = 0;
+                branch     = 0;
+                jump       = 1;
+                alu_op     = ADD;
+            end
         endcase
     end
 
