@@ -106,6 +106,24 @@ module control_unit(
                 jump       = 0;
                 alu_op     = ADD;
             end
+
+            B_TYPE: begin
+                alu_src    = 0;
+                reg_write  = 0;
+                mem_write  = 0;
+                mem_to_reg = 0;
+                branch     = 1;
+                jump       = 0;
+
+                case (funct3)
+                    3'b000: alu_op = SUB;   // BEQ
+                    3'b001: alu_op = SUB;   // BNE
+                    3'b100: alu_op = SLT;   // BLT
+                    3'b101: alu_op = SLT;   // BGE
+                    3'b110: alu_op = SLTU;  // BLTU
+                    3'b111: alu_op = SLTU;  // BGEU
+                endcase
+            end
         endcase
     end
 
