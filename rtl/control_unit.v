@@ -76,6 +76,16 @@ module control_unit(
                     3'b101: alu_op = funct7[5] ? SRA : SRL;  // SRLI vs SRAI, bit 30 selects
                 endcase
             end
+
+            I_LOAD: begin
+                alu_src    = 1;
+                reg_write  = 1;
+                mem_write  = 0;
+                mem_to_reg = 1;
+                branch     = 0;
+                jump       = 0;
+                alu_op     = ADD; // All of these load values, all are add. No need for case
+            end
         endcase
     end
 
