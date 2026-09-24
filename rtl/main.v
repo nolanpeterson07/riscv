@@ -50,7 +50,7 @@ module main (
     wire [31:0] rd_data;
     wire        reg_write_en;
 
-    registe u_register (
+    register u_register (
         .clk(clk),
         .rst_n(rst_n),
         .rs1_addr(rs1),
@@ -62,6 +62,22 @@ module main (
         .rs2_data(rs2_data)
     );
 
+    wire [3:0] alu_op;
+    wire       alu_src, mem_write, mem_to_reg, branch, jump;
+
+    control_unit u_control (
+        .opcode(opcode),
+        .funct3(funct3),
+        .funct7(funct7),
+        .alu_op(alu_op),
+        .alu_src(alu_src),
+        .reg_write(reg_write_en),
+        .mem_write(mem_write),
+        .mem_to_reg(mem_to_reg),
+        .branch(branch),
+        .jump(jump)
+    );
+
     wire [31:0] alu_in_b;
     assign alu_in_b = alu_src ? imm : rs2_data;
 
@@ -69,9 +85,9 @@ module main (
     wire        alu_zero;
 
     alu u_alu (
-        .a(rs1_data),
-        .b(alu_in_b),
-        .alu_op(alu_op),
+        .operand_a(rs1_data),
+        .operand_b(alu_in_b),
+        .op(alu_op),
         .result(alu_result),
         .zero(alu_zero)
     );
