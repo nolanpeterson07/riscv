@@ -20,22 +20,33 @@ endif
 CXXFLAGS = -Os -I$(VINC) -I$(VINC)/vltstd -I$(OBJ_DIR)/$(TOP)
 
 # --- RISC-V toolchain ---
-RVAS  = riscv64-unknown-elf-as
-RVLD  = riscv64-unknown-elf-ld
+RVCC  = riscv64-unknown-elf-gcc
 RVOBJ = riscv64-unknown-elf-objcopy
 RVFLAGS = -march=rv32i -mabi=ilp32
+RVCFLAGS = $(RVFLAGS) -O1 -ffreestanding -nostdlib -fno-pic -fno-reorder-functions
+RVLDFLAGS = -nostdlib -Wl,-m,elf32lriscv -Wl,-Ttext=0x0
 
-FW_SRC = test.s
-FW_ELF = $(BUILD)/test.elf
-FW_BIN = $(BUILD)/test.bin
-FW_HEX = firmware.hex
+TEST ?= test.s
+CRT0 = sim/crt0.s
+CYCLES ?= 20
 
-.PHONY: all sim wave clean compile_commands.json firmware
+FW_NAME = $(basename $(notdir $(TEST)))
+FW_ELF  = $(BUILD)/$(FW_NAME).elf
+FW_BIN  = $(BUILD)/$(FW_NAME).bin
+FW_HEX  = firmware.hex
+
+ifeq ($(suffix $(TEST)),.c)
+FW_SRCS = $(CRT0) $(TEST)
+else
+FW_SRCS = $(TEST)
+endif
+
+.PHONY: all sim wave clean compile_commands.json firmware $(FW_HEX)
 
 all: sim compile_commands.json
 
 sim: $(BUILD)/sim $(FW_HEX)
-	./$(BUILD)/sim
+	./$(BUILD)/sim $(CYCLES)
 
 $(BUILD)/sim: $(CPP) $(MAIN_LIB)
 	c++ $(CXXFLAGS) $(CPP) $(MAIN_LIB) $(RUNTIME_LIB) $(LDFLAGS) -pthread -o $(BUILD)/sim
@@ -52,13 +63,15 @@ $(MAIN_LIB): $(RTL_SRCS) | $(OBJ_DIR)
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
 
-# --- firmware build: .s -> .elf -> .bin -> firmware.hex ---
+# --- firmware build: .s/.c -> .elf -> .bin -> firmware.hex ---
+# firmware.hex is phony so switching TEST always rebuilds it
 firmware: $(FW_HEX)
 
-$(FW_HEX): $(FW_SRC) | $(BUILD)
-	$(RVAS) $(RVFLAGS) -o $(BUILD)/test.o $(FW_SRC)
-	$(RVLD) -m elf32lriscv -Ttext=0x0 -o $(FW_ELF) $(BUILD)/test.o
-	$(RVOBJ) -O binary $(FW_ELF) $(FW_BIN)
+$(FW_ELF): $(FW_SRCS) | $(BUILD)
+	$(RVCC) $(RVCFLAGS) $(RVLDFLAGS) -o $@ $(FW_SRCS)
+
+$(FW_HEX): $(FW_ELF)
+	$(RVOBJ) -O binary -j .text -j .rodata -j .srodata $(FW_ELF) $(FW_BIN)
 	xxd -e -g4 -c4 $(FW_BIN) | awk '{print $$2}' > $(FW_HEX)
 
 $(BUILD):

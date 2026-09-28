@@ -1,5 +1,6 @@
 #include <memory>
 #include <cstdio>
+#include <cstdlib>
 #include "Vmain.h"
 #include "verilated.h"
 #include "verilated_vcd_c.h"
@@ -52,7 +53,7 @@ int main(int argc, char** argv) {
 
     dut->rst_n = 1;
 
-    const int NUM_CYCLES = 20;
+    const int NUM_CYCLES = argc > 1 ? atoi(argv[1]) : 20;
     for (int i = 0; i < NUM_CYCLES; i++) {
         tick(dut.get(), tfp.get());
         printf("cycle %2d | pc_current = 0x%08x\n", i, dut->pc_current_out);
