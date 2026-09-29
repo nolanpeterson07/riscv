@@ -106,6 +106,7 @@ module main (
         .addr     (alu_result),
         .data_in  (rs2_data),
         .mem_write(mem_write),
+        .funct3   (funct3),
         .data_out (mem_data_out)
     );
 
