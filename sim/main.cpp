@@ -53,8 +53,16 @@ int main(int argc, char** argv) {
 
     dut->rst_n = 1;
 
-    const int NUM_CYCLES = argc > 1 ? atoi(argv[1]) : 20;
-    for (int i = 0; i < NUM_CYCLES; i++) {
+    // run until the program hits ebreak
+    const uint32_t EBREAK = 0x00100073;
+    const int MAX_CYCLES = argc > 1 ? atoi(argv[1]) : 20;
+    for (int i = 0; i < MAX_CYCLES; i++) {
+        uint32_t inst = dut->rootp->main__DOT__u_iram__DOT__mem[(dut->pc_current_out >> 2) & 1023];
+        if (inst == EBREAK) {
+            printf("ebreak at pc = 0x%08x, a0 = %d\n", dut->pc_current_out,
+                   (int)dut->rootp->main__DOT__u_register__DOT__registers[10]);
+            break;
+        }
         tick(dut.get(), tfp.get());
         printf("cycle %2d | pc_current = 0x%08x\n", i, dut->pc_current_out);
     }
