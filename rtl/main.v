@@ -20,7 +20,6 @@ module main (
     wire [31:0] iram_out;
 
     assign iram_idx = pc_current[31:2];
-    assign pc_next  = pc_current + 32'd4;
 
     iram u_iram (
         .idx(iram_idx),
@@ -81,6 +80,11 @@ module main (
         .jump(jump)
     );
 
+    wire [31:0] alu_in_a;
+    assign alu_in_a = (opcode == 7'b0110111) ? 32'd0 :
+                      (opcode == 7'b0010111) ? pc_current :
+                      rs1_data;
+
     wire [31:0] alu_in_b;
     assign alu_in_b = alu_src ? imm : rs2_data;
 
@@ -88,7 +92,7 @@ module main (
     wire        alu_zero;
 
     alu u_alu (
-        .operand_a(rs1_data),
+        .operand_a(alu_in_a),
         .operand_b(alu_in_b),
         .op(alu_op),
         .result(alu_result),
@@ -105,6 +109,29 @@ module main (
         .data_out (mem_data_out)
     );
 
-    assign rd_data = mem_to_reg ? mem_data_out : alu_result;
+    reg branch_taken;
+    always @(*) begin
+        case (funct3)
+            3'b000:  branch_taken =  alu_zero;       // BEQ
+            3'b001:  branch_taken = !alu_zero;       // BNE
+            3'b100,
+            3'b110:  branch_taken =  alu_result[0];  // BLT, BLTU
+            3'b101,
+            3'b111:  branch_taken = !alu_result[0];  // BGE, BGEU
+            default: branch_taken = 1'b0;
+        endcase
+    end
+
+    wire [31:0] pc_plus4;
+    assign pc_plus4 = pc_current + 32'd4;
+
+    assign pc_next = (opcode == 7'b1101111)    ? pc_current + imm :        // JAL
+                     (opcode == 7'b1100111)    ? alu_result & ~32'd1 :     // JALR
+                     (branch && branch_taken)  ? pc_current + imm :        // taken branch
+                     pc_plus4;
+
+    assign rd_data = jump       ? pc_plus4 :
+                     mem_to_reg ? mem_data_out :
+                     alu_result;
 
 endmodule
