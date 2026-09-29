@@ -34,6 +34,14 @@ module control_unit(
     localparam AND = 4'b1001;
 
     always @(*) begin
+        alu_op     = ADD;
+        alu_src    = 0;
+        reg_write  = 0;
+        mem_write  = 0;
+        mem_to_reg = 0;
+        branch     = 0;
+        jump       = 0;
+
         case (opcode)
             R_TYPE: begin
                 alu_src    = 0;
@@ -54,6 +62,7 @@ module control_unit(
                     10'b0100000_101: alu_op = SRA;
                     10'b0000000_110: alu_op = OR;
                     10'b0000000_111: alu_op = AND;
+                    default: ;
                 endcase
             end
 
@@ -122,6 +131,7 @@ module control_unit(
                     3'b101: alu_op = SLT;   // BGE
                     3'b110: alu_op = SLTU;  // BLTU
                     3'b111: alu_op = SLTU;  // BGEU
+                    default: ;
                 endcase
             end
 
@@ -154,6 +164,7 @@ module control_unit(
                 jump       = 1;
                 alu_op     = ADD;  // dont care
             end
+            default: ;
         endcase
     end
 
