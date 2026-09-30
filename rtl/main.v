@@ -1,5 +1,6 @@
 module main #(
-    parameter UART_CLKS_PER_BIT = 434
+    parameter UART_CLKS_PER_BIT = 434,
+    parameter RAM_DELAY         = 0      // extra cycles RAM takes to answer (for testing stalls)
 ) (
     input wire clk,
     input wire rst_n,
@@ -14,21 +15,28 @@ module main #(
     localparam FETCH = 2'd0, EXEC = 2'd1, MEM = 2'd2;
     reg [1:0] state;
     reg [31:0] instr;
-    wire [31:0] iram_out;
 
     wire alu_src, mem_write, mem_to_reg, branch, jump;
     wire is_mem = mem_write | mem_to_reg;
-    wire finish = (state == EXEC && !is_mem) || (state == MEM);   // last cycle of the instruction
+
+    wire [31:0] pc_current;
+    wire [31:0] alu_result;
+    wire        bus_valid = (state == FETCH) || (state == MEM);
+    wire [31:0] bus_addr  = (state == FETCH) ? pc_current : alu_result;
+    wire        bus_ready;
+    wire [31:0] bus_rdata;
+    wire        bus_fire  = bus_valid & bus_ready;
+
+    wire finish = (state == EXEC && !is_mem) || (state == MEM && bus_ready);   // last cycle of the instruction
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n)
             instr <= 32'd0;
-        else if (state == FETCH)
-            instr <= iram_out;
+        else if (state == FETCH && bus_ready)
+            instr <= bus_rdata;
     end
 
     wire [31:0] pc_next;
-    wire [31:0] pc_current;
     assign pc_current_out = pc_current;
 
     pc u_pc (
@@ -37,15 +45,6 @@ module main #(
         .pc_write(finish),
         .pc_next(pc_next),
         .pc_current(pc_current)
-    );
-
-    wire [31:2] iram_idx;
-
-    assign iram_idx = pc_current[31:2];
-
-    iram u_iram (
-        .idx(iram_idx),
-        .out(iram_out)
     );
 
     wire [31:0] inst;
@@ -105,8 +104,9 @@ module main #(
         if (!rst_n)
             state <= FETCH;
         else case (state)
-            FETCH:   state <= EXEC;
+            FETCH:   if (bus_ready) state <= EXEC;
             EXEC:    state <= is_mem ? MEM : FETCH;
+            MEM:     if (bus_ready) state <= FETCH;
             default: state <= FETCH;
         endcase
     end
@@ -119,7 +119,6 @@ module main #(
     wire [31:0] alu_in_b;
     assign alu_in_b = alu_src ? imm : rs2_data;
 
-    wire [31:0] alu_result;
     wire        alu_zero;
 
     alu u_alu (
@@ -134,22 +133,41 @@ module main #(
 
     // memory map
     //   0x0000_0000  RAM (4 KiB, up to 0x0000_0FFF; the rest of 0x0xxx_xxxx is unmapped)
-    //   0x1000_0000  UART: +0 TX (write), +4 STATUS (read: bit0 tx_busy, bit1 rx_valid, bit2 rx_overrun), +8 RX (read)
-    wire sel_ram  = (alu_result[31:12] == 20'h0);
-    wire sel_uart = (alu_result[31:28] == 4'h1);
+    //   0x1000_0000  UART: +0 TX (write), +4 STATUS (read: bit0 tx_busy, bit1 rx_valid, bit2 rx_overrun, cleared by reading STATUS), +8 RX (read)
+    wire sel_ram  = (bus_addr[31:12] == 20'h0);
+    wire sel_uart = (bus_addr[31:28] == 4'h1);
+
+    // RAM answers RAM_DELAY cycles after a request
+    reg  [3:0] ram_wait;
+    wire       ram_ready = (ram_wait == RAM_DELAY[3:0]);
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n)
+            ram_wait <= 4'd0;
+        else if (bus_valid && sel_ram && !ram_ready)
+            ram_wait <= ram_wait + 1;      // still waiting
+        else
+            ram_wait <= 4'd0;              // idle, or just finished
+    end
+
+    assign bus_ready = sel_ram ? ram_ready : 1'b1;
+
+    wire mem_store = (state == MEM) & mem_write & bus_fire;
+    wire mem_load  = (state == MEM) & mem_to_reg & bus_fire;
 
     mem u_mem (
         .clk      (clk),
-        .addr     (alu_result),
+        .addr     (bus_addr),
         .data_in  (rs2_data),
-        .mem_write(mem_write & sel_ram & state == MEM),
-        .funct3   (funct3),
+        .mem_write(mem_store & sel_ram),
+        .funct3   ((state == FETCH) ? 3'b010 : funct3),   // fetches are whole words
         .data_out (mem_data_out)
     );
 
-    wire [3:0] uart_reg      = alu_result[3:0];
-    wire       uart_tx_start = mem_write  & sel_uart & (uart_reg == 4'h0);
-    wire       uart_rx_read  = mem_to_reg & sel_uart & (uart_reg == 4'h8) & state == MEM;
+    wire [3:0] uart_reg      = bus_addr[3:0];
+    wire       uart_tx_start = mem_store & sel_uart & (uart_reg == 4'h0);
+    wire       uart_rx_read  = mem_load  & sel_uart & (uart_reg == 4'h8);
+    wire       uart_st_read  = mem_load  & sel_uart & (uart_reg == 4'h4);
     wire       uart_tx_busy, uart_rx_valid, uart_rx_overrun;
     wire [7:0] uart_rx_data;
 
@@ -157,14 +175,15 @@ module main #(
         .clk       (clk),
         .rst_n     (rst_n),
         .tx_data   (rs2_data[7:0]),
-        .tx_start  (uart_tx_start & state == MEM),
+        .tx_start  (uart_tx_start),
         .tx_busy   (uart_tx_busy),
         .tx        (uart_tx),
         .rx        (uart_rx),
         .rx_data   (uart_rx_data),
         .rx_valid  (uart_rx_valid),
         .rx_overrun(uart_rx_overrun),
-        .rx_read   (uart_rx_read)
+        .rx_read   (uart_rx_read),
+        .status_read(uart_st_read)
     );
 
     wire [31:0] uart_rdata = (uart_reg == 4'h4) ? {29'd0, uart_rx_overrun, uart_rx_valid, uart_tx_busy} :
@@ -172,9 +191,9 @@ module main #(
                              32'd0;
 
     // unmapped addresses read as 0 and stores to them are dropped
-    wire [31:0] load_data = sel_ram  ? mem_data_out :
-                            sel_uart ? uart_rdata :
-                            32'd0;
+    assign bus_rdata = sel_ram  ? mem_data_out :
+                       sel_uart ? uart_rdata :
+                       32'd0;
 
     reg branch_taken;
     always @(*) begin
@@ -198,7 +217,7 @@ module main #(
                      pc_plus4;
 
     assign rd_data = jump       ? pc_plus4 :
-                     mem_to_reg ? load_data :
+                     mem_to_reg ? bus_rdata :
                      alu_result;
 
 endmodule

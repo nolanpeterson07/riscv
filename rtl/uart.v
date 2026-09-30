@@ -13,7 +13,8 @@ module uart #(
     output reg  [7:0] rx_data, // TODO: make a bigger buffer
     output reg        rx_valid,
     output reg        rx_overrun,
-    input  wire       rx_read
+    input  wire       rx_read,
+    input  wire       status_read
 );
 
     // counter compare values, sized to match the counters
@@ -116,10 +117,11 @@ module uart #(
                 rx_count <= rx_count + 1;
 
             // the CPU read the byte
-            if (rx_read) begin
-                rx_valid   <= 1'b0;
+            if (rx_read)
+                rx_valid <= 1'b0;
+
+            if (status_read)
                 rx_overrun <= 1'b0;
-            end
 
             case (rx_state)
                 IDLE: if (!rx_sync)
