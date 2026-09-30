@@ -19,6 +19,8 @@ endif
 
 # UART bit time in the sim; small so a character takes 10*4 cycles instead of 4340
 UART_CLKS_PER_BIT = 4
+# text the sim sends into uart_rx
+UART_IN ?=
 
 CXXFLAGS = -DUART_CLKS_PER_BIT=$(UART_CLKS_PER_BIT) -Os -I$(VINC) -I$(VINC)/vltstd -I$(OBJ_DIR)/$(TOP)
 
@@ -47,12 +49,12 @@ FW_SRCS = $(TEST)
 CYCLES ?= 20
 endif
 
-.PHONY: all sim wave clean compile_commands.json firmware $(FW_HEX)
+.PHONY: all sim test wave clean compile_commands.json firmware $(FW_HEX)
 
 all: sim compile_commands.json
 
 sim: $(BUILD)/sim $(FW_HEX)
-	./$(BUILD)/sim $(CYCLES)
+	./$(BUILD)/sim $(CYCLES) "$(UART_IN)"
 
 $(BUILD)/sim: $(CPP) $(MAIN_LIB)
 	c++ $(CXXFLAGS) $(CPP) $(MAIN_LIB) $(RUNTIME_LIB) $(LDFLAGS) -pthread -o $(BUILD)/sim
@@ -82,6 +84,9 @@ $(FW_HEX): $(FW_ELF)
 
 $(BUILD):
 	mkdir -p $(BUILD)
+
+test: $(BUILD)/sim
+	@tests/run.sh
 
 wave: sim
 	gtkwave $(BUILD)/main.vcd &
