@@ -155,12 +155,34 @@ module main #(
     wire mem_store = (state == MEM) & mem_write & bus_fire;
     wire mem_load  = (state == MEM) & mem_to_reg & bus_fire;
 
+    // devices only see whole words: stores say which bytes to write with
+    // bus_wstrb, and loads pick their byte/halfword out of bus_rdata
+    wire [1:0] byte_off = bus_addr[1:0];
+
+    reg [3:0]  bus_wstrb;
+    reg [31:0] bus_wdata;
+    always @(*) begin
+        case (funct3[1:0])
+            2'b00: begin                                   // SB
+                bus_wstrb = 4'b0001 << byte_off;
+                bus_wdata = {4{rs2_data[7:0]}};            // byte in every lane
+            end
+            2'b01: begin                                   // SH
+                bus_wstrb = byte_off[1] ? 4'b1100 : 4'b0011;
+                bus_wdata = {2{rs2_data[15:0]}};
+            end
+            default: begin                                 // SW
+                bus_wstrb = 4'b1111;
+                bus_wdata = rs2_data;
+            end
+        endcase
+    end
+
     mem u_mem (
         .clk      (clk),
         .addr     (bus_addr),
-        .data_in  (rs2_data),
-        .mem_write(mem_store & sel_ram),
-        .funct3   ((state == FETCH) ? 3'b010 : funct3),   // fetches are whole words
+        .wdata    (bus_wdata),
+        .wstrb    ((mem_store & sel_ram) ? bus_wstrb : 4'b0000),
         .data_out (mem_data_out)
     );
 
@@ -195,6 +217,29 @@ module main #(
                        sel_uart ? uart_rdata :
                        32'd0;
 
+    // loads: pick the addressed byte/halfword out of the word, then sign- or zero-extend
+    reg [7:0] load_byte;
+    always @(*) begin
+        case (byte_off)
+            2'b00: load_byte = bus_rdata[7:0];
+            2'b01: load_byte = bus_rdata[15:8];
+            2'b10: load_byte = bus_rdata[23:16];
+            2'b11: load_byte = bus_rdata[31:24];
+        endcase
+    end
+    wire [15:0] load_half = byte_off[1] ? bus_rdata[31:16] : bus_rdata[15:0];
+
+    reg [31:0] load_value;
+    always @(*) begin
+        case (funct3)
+            3'b000:  load_value = {{24{load_byte[7]}}, load_byte};    // LB
+            3'b001:  load_value = {{16{load_half[15]}}, load_half};   // LH
+            3'b100:  load_value = {24'd0, load_byte};                 // LBU
+            3'b101:  load_value = {16'd0, load_half};                 // LHU
+            default: load_value = bus_rdata;                          // LW
+        endcase
+    end
+
     reg branch_taken;
     always @(*) begin
         case (funct3)
@@ -217,7 +262,7 @@ module main #(
                      pc_plus4;
 
     assign rd_data = jump       ? pc_plus4 :
-                     mem_to_reg ? bus_rdata :
+                     mem_to_reg ? load_value :
                      alu_result;
 
 endmodule
