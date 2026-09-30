@@ -48,6 +48,12 @@ void uart_putc(char c) {
     UART_TX = c;
 }
 
+char uart_getc(void) {
+    while (!(UART_STATUS & UART_RX_VALID))
+        ;
+    return UART_RX;          // reading RX clears rx_valid
+}
+
 void uart_puts(const char *s) {
     while (*s)
         uart_putc(*s++);

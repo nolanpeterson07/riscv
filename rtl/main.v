@@ -9,15 +9,16 @@ module main #(
     input  wire        uart_rx
 );
 
-    localparam FETCH = 1'b0, EXEC = 1'b1;
-    reg state;
+    // FETCH -> EXEC -> FETCH for most instructions
+    // FETCH -> EXEC -> MEM -> FETCH for loads and stores
+    localparam FETCH = 2'd0, EXEC = 2'd1, MEM = 2'd2;
+    reg [1:0] state;
     reg [31:0] instr;
     wire [31:0] iram_out;
 
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) state <= FETCH;
-        else state <= (state == FETCH) ? EXEC : FETCH;
-    end
+    wire alu_src, mem_write, mem_to_reg, branch, jump;
+    wire is_mem = mem_write | mem_to_reg;
+    wire finish = (state == EXEC && !is_mem) || (state == MEM);   // last cycle of the instruction
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n)
@@ -33,7 +34,7 @@ module main #(
     pc u_pc (
         .clk(clk),
         .rst_n(rst_n),
-        .pc_write(state == EXEC),
+        .pc_write(finish),
         .pc_next(pc_next),
         .pc_current(pc_current)
     );
@@ -80,13 +81,12 @@ module main #(
         .rs2_addr(rs2),
         .rd_addr(rd),
         .rd_data(rd_data),
-        .rd_write_en(reg_write_en && state == EXEC),
+        .rd_write_en(reg_write_en && finish),
         .rs1_data(rs1_data),
         .rs2_data(rs2_data)
     );
 
     wire [3:0] alu_op;
-    wire       alu_src, mem_write, mem_to_reg, branch, jump;
 
     control_unit u_control (
         .opcode(opcode),
@@ -100,6 +100,16 @@ module main #(
         .branch(branch),
         .jump(jump)
     );
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n)
+            state <= FETCH;
+        else case (state)
+            FETCH:   state <= EXEC;
+            EXEC:    state <= is_mem ? MEM : FETCH;
+            default: state <= FETCH;
+        endcase
+    end
 
     wire [31:0] alu_in_a;
     assign alu_in_a = (opcode == 7'b0110111) ? 32'd0 :
@@ -132,14 +142,14 @@ module main #(
         .clk      (clk),
         .addr     (alu_result),
         .data_in  (rs2_data),
-        .mem_write(mem_write & sel_ram & state == EXEC),
+        .mem_write(mem_write & sel_ram & state == MEM),
         .funct3   (funct3),
         .data_out (mem_data_out)
     );
 
     wire [3:0] uart_reg      = alu_result[3:0];
     wire       uart_tx_start = mem_write  & sel_uart & (uart_reg == 4'h0);
-    wire       uart_rx_read  = mem_to_reg & sel_uart & (uart_reg == 4'h8) & state == EXEC;
+    wire       uart_rx_read  = mem_to_reg & sel_uart & (uart_reg == 4'h8) & state == MEM;
     wire       uart_tx_busy, uart_rx_valid, uart_rx_overrun;
     wire [7:0] uart_rx_data;
 
@@ -147,7 +157,7 @@ module main #(
         .clk       (clk),
         .rst_n     (rst_n),
         .tx_data   (rs2_data[7:0]),
-        .tx_start  (uart_tx_start & state == EXEC),
+        .tx_start  (uart_tx_start & state == MEM),
         .tx_busy   (uart_tx_busy),
         .tx        (uart_tx),
         .rx        (uart_rx),
