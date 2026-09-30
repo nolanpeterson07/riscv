@@ -9,6 +9,23 @@ module main #(
     input  wire        uart_rx
 );
 
+    localparam FETCH = 1'b0, EXEC = 1'b1;
+    reg state;
+    reg [31:0] instr;
+    wire [31:0] iram_out;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) state <= FETCH;
+        else state <= (state == FETCH) ? EXEC : FETCH;
+    end
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n)
+            instr <= 32'd0;
+        else if (state == FETCH)
+            instr <= iram_out;
+    end
+
     wire [31:0] pc_next;
     wire [31:0] pc_current;
     assign pc_current_out = pc_current;
@@ -16,12 +33,12 @@ module main #(
     pc u_pc (
         .clk(clk),
         .rst_n(rst_n),
+        .pc_write(state == EXEC),
         .pc_next(pc_next),
         .pc_current(pc_current)
     );
 
     wire [31:2] iram_idx;
-    wire [31:0] iram_out;
 
     assign iram_idx = pc_current[31:2];
 
@@ -39,7 +56,7 @@ module main #(
     wire [4:0]  rd;
     wire [31:0] imm;
 
-    assign inst = iram_out;
+    assign inst = instr;
 
     decoder u_decoder (
         .inst(inst),
@@ -63,7 +80,7 @@ module main #(
         .rs2_addr(rs2),
         .rd_addr(rd),
         .rd_data(rd_data),
-        .rd_write_en(reg_write_en),
+        .rd_write_en(reg_write_en && state == EXEC),
         .rs1_data(rs1_data),
         .rs2_data(rs2_data)
     );
@@ -115,14 +132,14 @@ module main #(
         .clk      (clk),
         .addr     (alu_result),
         .data_in  (rs2_data),
-        .mem_write(mem_write & sel_ram),
+        .mem_write(mem_write & sel_ram & state == EXEC),
         .funct3   (funct3),
         .data_out (mem_data_out)
     );
 
     wire [3:0] uart_reg      = alu_result[3:0];
     wire       uart_tx_start = mem_write  & sel_uart & (uart_reg == 4'h0);
-    wire       uart_rx_read  = mem_to_reg & sel_uart & (uart_reg == 4'h8);
+    wire       uart_rx_read  = mem_to_reg & sel_uart & (uart_reg == 4'h8) & state == EXEC;
     wire       uart_tx_busy, uart_rx_valid, uart_rx_overrun;
     wire [7:0] uart_rx_data;
 
@@ -130,7 +147,7 @@ module main #(
         .clk       (clk),
         .rst_n     (rst_n),
         .tx_data   (rs2_data[7:0]),
-        .tx_start  (uart_tx_start),
+        .tx_start  (uart_tx_start & state == EXEC),
         .tx_busy   (uart_tx_busy),
         .tx        (uart_tx),
         .rx        (uart_rx),
