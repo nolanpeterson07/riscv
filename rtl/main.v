@@ -161,8 +161,18 @@ module main #(
         .miso    (spi_miso)
     );
 
-    // flash takes ~130 cycles; RAM, UART and unmapped addresses answer right away
-    assign bus_ready = sel_flash ? (flash_store | flash_ready) : 1'b1;
+    // flash answers after ~130 cycles
+    reg ram_ready;
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n)
+            ram_ready <= 1'b0;
+        else
+            ram_ready <= bus_valid && sel_ram && !ram_ready;
+    end
+
+    assign bus_ready = sel_flash ? (flash_store | flash_ready) :
+                       sel_ram   ? ram_ready :
+                       1'b1;
 
     wire mem_store = (state == MEM) & mem_write & bus_fire;
     wire mem_load  = (state == MEM) & mem_to_reg & bus_fire;

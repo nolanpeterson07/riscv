@@ -31,7 +31,7 @@ FW_SRCS = $(TEST)
 endif
 CYCLES ?= 5000000
 
-.PHONY: all sim test wave clean firmware
+.PHONY: all sim test wave clean firmware fpga fpga-load fpga-flash
 
 all: sim
 
@@ -57,6 +57,28 @@ $(FW_BIN): $(FW_ELF)
 
 $(BUILD):
 	mkdir -p $(BUILD)
+
+# --- Tang Nano 9K (OSS CAD Suite: yosys, nextpnr-himbaechel, gowin_pack, openFPGALoader) ---
+FPGA_DEVICE = GW1NR-LV9QN88PC6/I5
+FPGA_FAMILY = GW1N-9C
+FPGA_SRCS   = $(wildcard rtl/*.v) fpga/top.v
+FPGA_CST    = fpga/tangnano9k.cst
+FPGA_BIT    = $(BUILD)/fpga/top.fs
+
+fpga: $(FPGA_BIT)
+
+$(FPGA_BIT): $(FPGA_SRCS) $(FPGA_CST)
+	@mkdir -p $(BUILD)/fpga
+	yosys -q -l $(BUILD)/fpga/yosys.log -p "read_verilog -sv $(FPGA_SRCS); synth_gowin -top top -json $(BUILD)/fpga/top.json"
+	nextpnr-himbaechel --json $(BUILD)/fpga/top.json --write $(BUILD)/fpga/pnr.json --freq 27 \
+	    --device $(FPGA_DEVICE) --vopt family=$(FPGA_FAMILY) --vopt cst=$(FPGA_CST)
+	gowin_pack -d $(FPGA_FAMILY) -o $@ $(BUILD)/fpga/pnr.json
+
+fpga-flash: $(FW_BIN)
+	openFPGALoader -b tangnano9k --external-flash $(FW_BIN)
+
+fpga-load: $(FPGA_BIT)
+	openFPGALoader -b tangnano9k $(FPGA_BIT)
 
 wave:
 	$(MAKE) sim VCD=1
