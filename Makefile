@@ -17,13 +17,16 @@ ifeq ($(shell uname),Darwin)
 LDFLAGS = -Wl,-U,__Z15vl_time_stamp64v -Wl,-U,__Z13sc_time_stampv -Wl,-U,_vlog_startup_routines
 endif
 
-CXXFLAGS = -Os -I$(VINC) -I$(VINC)/vltstd -I$(OBJ_DIR)/$(TOP)
+# UART bit time in the sim; small so a character takes 10*4 cycles instead of 4340
+UART_CLKS_PER_BIT = 4
+
+CXXFLAGS = -DUART_CLKS_PER_BIT=$(UART_CLKS_PER_BIT) -Os -I$(VINC) -I$(VINC)/vltstd -I$(OBJ_DIR)/$(TOP)
 
 # --- RISC-V toolchain ---
 RVCC  = riscv64-unknown-elf-gcc
 RVOBJ = riscv64-unknown-elf-objcopy
 RVFLAGS = -march=rv32i -mabi=ilp32
-RVCFLAGS = $(RVFLAGS) -O1 -ffreestanding -nostdlib -fno-pic -fno-reorder-functions \
+RVCFLAGS = $(RVFLAGS) -Isim -O1 -ffreestanding -nostdlib -fno-pic -fno-reorder-functions \
            -fno-tree-loop-distribute-patterns  # keep gcc from turning memset/memcpy loops into calls to themselves
 RVLDFLAGS = -nostdlib -Wl,-m,elf32lriscv -Wl,-Ttext=0x0 -Wl,-N -Wl,--no-warn-rwx-segments  # -N: place data right after code, no page alignment
 
@@ -60,7 +63,7 @@ compile_commands.json: $(MAIN_LIB)
 	  '[{directory: $$dir, file: $$file, arguments: ($$args | split(" "))}]' > $@
 
 $(MAIN_LIB): $(RTL_SRCS) | $(OBJ_DIR)
-	verilator -Wall -Wno-fatal --cc $(RTL_SRCS) --trace --Mdir $(OBJ_DIR)/$(TOP) --top-module $(TOP) --public
+	verilator -Wall -Wno-fatal --cc $(RTL_SRCS) --trace --Mdir $(OBJ_DIR)/$(TOP) --top-module $(TOP) --public -GUART_CLKS_PER_BIT=$(UART_CLKS_PER_BIT)
 	$(MAKE) -C $(OBJ_DIR)/$(TOP) -f V$(TOP).mk
 
 $(OBJ_DIR):

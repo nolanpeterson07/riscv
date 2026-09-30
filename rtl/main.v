@@ -1,8 +1,11 @@
-module main (
+module main #(
+    parameter UART_CLKS_PER_BIT = 434
+) (
     input wire clk,
     input wire rst_n,
 
-    output wire [31:0] pc_current_out
+    output wire [31:0] pc_current_out,
+    output wire        uart_tx
 );
 
     wire [31:0] pc_next;
@@ -101,14 +104,48 @@ module main (
 
     wire [31:0] mem_data_out;
 
+    // memory map
+    //   0x0000_0000  RAM (4 KiB, up to 0x0000_0FFF; the rest of 0x0xxx_xxxx is unmapped)
+    //   0x1000_0000  UART: +0 TX (write), +4 STATUS (read: bit0 tx_busy, bit1 rx_valid), +8 RX (read)
+    wire sel_ram  = (alu_result[31:12] == 20'h0);
+    wire sel_uart = (alu_result[31:28] == 4'h1);
+
     mem u_mem (
         .clk      (clk),
         .addr     (alu_result),
         .data_in  (rs2_data),
-        .mem_write(mem_write),
+        .mem_write(mem_write & sel_ram),
         .funct3   (funct3),
         .data_out (mem_data_out)
     );
+
+    wire [3:0] uart_reg      = alu_result[3:0];
+    wire       uart_tx_start = mem_write  & sel_uart & (uart_reg == 4'h0);
+    wire       uart_rx_read  = mem_to_reg & sel_uart & (uart_reg == 4'h8);
+    wire       uart_tx_busy, uart_rx_valid;
+    wire [7:0] uart_rx_data;
+
+    uart #(.CLKS_PER_BIT(UART_CLKS_PER_BIT)) u_uart (
+        .clk     (clk),
+        .rst_n   (rst_n),
+        .tx_data (rs2_data[7:0]),
+        .tx_start(uart_tx_start),
+        .tx_busy (uart_tx_busy),
+        .tx      (uart_tx),
+        .rx      (1'b1), // no rx implemented yet
+        .rx_data (uart_rx_data),
+        .rx_valid(uart_rx_valid),
+        .rx_read (uart_rx_read)
+    );
+
+    wire [31:0] uart_rdata = (uart_reg == 4'h4) ? {30'd0, uart_rx_valid, uart_tx_busy} :
+                             (uart_reg == 4'h8) ? {24'd0, uart_rx_data} :
+                             32'd0;
+
+    // unmapped addresses read as 0 and stores to them are dropped
+    wire [31:0] load_data = sel_ram  ? mem_data_out :
+                            sel_uart ? uart_rdata :
+                            32'd0;
 
     reg branch_taken;
     always @(*) begin
@@ -132,7 +169,7 @@ module main (
                      pc_plus4;
 
     assign rd_data = jump       ? pc_plus4 :
-                     mem_to_reg ? mem_data_out :
+                     mem_to_reg ? load_data :
                      alu_result;
 
 endmodule
