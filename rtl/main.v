@@ -1,13 +1,18 @@
 module main #(
-    parameter UART_CLKS_PER_BIT = 434,
-    parameter RAM_DELAY         = 0      // extra cycles RAM takes to answer (for testing stalls)
+    parameter UART_CLKS_PER_BIT = 2083   // 20 MHz clock / 9600 baud
 ) (
     input wire clk,
     input wire rst_n,
 
     output wire [31:0] pc_current_out,
     output wire        uart_tx,
-    input  wire        uart_rx
+    input  wire        uart_rx,
+
+    // SPI flash holding the program
+    output wire        spi_cs_n,
+    output wire        spi_sck,
+    output wire        spi_mosi,
+    input  wire        spi_miso
 );
 
     // FETCH -> EXEC -> FETCH for most instructions
@@ -132,25 +137,32 @@ module main #(
     wire [31:0] mem_data_out;
 
     // memory map
-    //   0x0000_0000  RAM (4 KiB, up to 0x0000_0FFF; the rest of 0x0xxx_xxxx is unmapped)
+    //   0x0000_0000  SPI flash (up to 16 MiB, read-only; the CPU starts here)
+    //   0x0100_0000  RAM (4 KiB, up to 0x0100_0FFF)
     //   0x1000_0000  UART: +0 TX (write), +4 STATUS (read: bit0 tx_busy, bit1 rx_valid, bit2 rx_overrun, cleared by reading STATUS), +8 RX (read)
-    wire sel_ram  = (bus_addr[31:12] == 20'h0);
-    wire sel_uart = (bus_addr[31:28] == 4'h1);
+    wire sel_flash = (bus_addr[31:24] == 8'h00);
+    wire sel_ram   = (bus_addr[31:12] == 20'h01000);
+    wire sel_uart  = (bus_addr[31:28] == 4'h1);
 
-    // RAM answers RAM_DELAY cycles after a request
-    reg  [3:0] ram_wait;
-    wire       ram_ready = (ram_wait == RAM_DELAY[3:0]);
+    wire        flash_store = (state == MEM) & mem_write;
+    wire        flash_ready;
+    wire [31:0] flash_rdata;
 
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n)
-            ram_wait <= 4'd0;
-        else if (bus_valid && sel_ram && !ram_ready)
-            ram_wait <= ram_wait + 1;      // still waiting
-        else
-            ram_wait <= 4'd0;              // idle, or just finished
-    end
+    spi_flash u_flash (
+        .clk     (clk),
+        .rst_n   (rst_n),
+        .valid   (bus_valid & sel_flash & !flash_store),
+        .addr    (bus_addr[23:0]),
+        .ready   (flash_ready),
+        .rdata   (flash_rdata),
+        .cs_n    (spi_cs_n),
+        .sck     (spi_sck),
+        .mosi    (spi_mosi),
+        .miso    (spi_miso)
+    );
 
-    assign bus_ready = sel_ram ? ram_ready : 1'b1;
+    // flash takes ~130 cycles; RAM, UART and unmapped addresses answer right away
+    assign bus_ready = sel_flash ? (flash_store | flash_ready) : 1'b1;
 
     wire mem_store = (state == MEM) & mem_write & bus_fire;
     wire mem_load  = (state == MEM) & mem_to_reg & bus_fire;
@@ -213,8 +225,9 @@ module main #(
                              32'd0;
 
     // unmapped addresses read as 0 and stores to them are dropped
-    assign bus_rdata = sel_ram  ? mem_data_out :
-                       sel_uart ? uart_rdata :
+    assign bus_rdata = sel_flash ? flash_rdata :
+                       sel_ram   ? mem_data_out :
+                       sel_uart  ? uart_rdata :
                        32'd0;
 
     // loads: pick the addressed byte/halfword out of the word, then sign- or zero-extend

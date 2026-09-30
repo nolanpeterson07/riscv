@@ -15,4 +15,6 @@ void uart_puthex(unsigned x);
 void uart_putdec(int x);
 char uart_getc(void);
 
+extern int uart_rx_lost;
+
 #endif

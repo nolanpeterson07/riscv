@@ -1,7 +1,26 @@
-# Startup for C programs: set up the stack, call main, then stop the sim.
-.section .text
+.section .text.init, "ax"
 .globl _start
 _start:
-    li   sp, 4096        # top of the 4 KiB data memory
-    call main
-    ebreak               # sim stops here; main's return value is in a0
+    la   sp, _stack_top
+
+    # copy initialized globals (.data) from flash into RAM
+    la   a0, _data_load
+    la   a1, _data_start
+    la   a2, _data_end
+1:  bgeu a1, a2, 2f
+    lw   t0, 0(a0)
+    sw   t0, 0(a1)
+    addi a0, a0, 4
+    addi a1, a1, 4
+    j    1b
+
+    # zero uninitialized globals (.bss)
+2:  la   a0, _bss_start
+    la   a1, _bss_end
+3:  bgeu a0, a1, 4f
+    sw   zero, 0(a0)
+    addi a0, a0, 4
+    j    3b
+
+4:  call main
+    ebreak

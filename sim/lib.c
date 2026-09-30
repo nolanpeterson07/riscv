@@ -1,5 +1,3 @@
-// Minimal string.h routines. gcc emits calls to these for struct copies and
-// array initialization even with -ffreestanding.
 #include <stddef.h>
 
 void *memset(void *dst, int c, size_t n) {
@@ -48,10 +46,16 @@ void uart_putc(char c) {
     UART_TX = c;
 }
 
+int uart_rx_lost;
+
 char uart_getc(void) {
-    while (!(UART_STATUS & UART_RX_VALID))
-        ;
-    return UART_RX;          // reading RX clears rx_valid
+    unsigned status;
+    do {
+        status = UART_STATUS;
+        if (status & UART_OVERRUN)
+            uart_rx_lost = 1;
+    } while (!(status & UART_RX_VALID));
+    return UART_RX;
 }
 
 void uart_puts(const char *s) {

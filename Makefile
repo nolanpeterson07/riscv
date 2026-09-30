@@ -1,28 +1,11 @@
-RTL_SRCS = $(wildcard rtl/*.v)
+BUILD = build
 
-CPP = sim/main.cpp
+SIM_BIN  = $(BUILD)/cargo/release/sim
+SIM_SRCS = sim/Cargo.toml $(wildcard sim/src/*.rs)
 
-BUILD   = build
-OBJ_DIR = $(BUILD)/obj_dir
-
-VROOT = $(shell verilator --getenv VERILATOR_ROOT)
-VINC  = $(VROOT)/include
-
-TOP = main
-
-MAIN_LIB    = $(OBJ_DIR)/$(TOP)/V$(TOP)__ALL.a
-RUNTIME_LIB = $(OBJ_DIR)/$(TOP)/libverilated.a
-
-ifeq ($(shell uname),Darwin)
-LDFLAGS = -Wl,-U,__Z15vl_time_stamp64v -Wl,-U,__Z13sc_time_stampv -Wl,-U,_vlog_startup_routines
-endif
-
-# UART bit time in the sim; small so a character takes 10*4 cycles instead of 4340
-UART_CLKS_PER_BIT = 4
-# text the sim sends into uart_rx
-UART_IN ?=
-
-CXXFLAGS = -DUART_CLKS_PER_BIT=$(UART_CLKS_PER_BIT) -Os -I$(VINC) -I$(VINC)/vltstd -I$(OBJ_DIR)/$(TOP)
+UART_IN  ?=
+TRACE ?=
+VCD   ?=
 
 # --- RISC-V toolchain ---
 RVCC  = riscv64-unknown-elf-gcc
@@ -30,7 +13,8 @@ RVOBJ = riscv64-unknown-elf-objcopy
 RVFLAGS = -march=rv32i -mabi=ilp32
 RVCFLAGS = $(RVFLAGS) -Isim -O1 -ffreestanding -nostdlib -fno-pic -fno-reorder-functions \
            -fno-tree-loop-distribute-patterns  # keep gcc from turning memset/memcpy loops into calls to themselves
-RVLDFLAGS = -nostdlib -Wl,-m,elf32lriscv -Wl,-Ttext=0x0 -Wl,-N -Wl,--no-warn-rwx-segments  # -N: place data right after code, no page alignment
+LINK_LD = sim/link.ld
+RVLDFLAGS = -nostdlib -Wl,-m,elf32lriscv -T $(LINK_LD)
 
 TEST ?= test.s
 CRT0 = sim/crt0.s
@@ -39,57 +23,44 @@ LIBC = sim/lib.c
 FW_NAME = $(basename $(notdir $(TEST)))
 FW_ELF  = $(BUILD)/$(FW_NAME).elf
 FW_BIN  = $(BUILD)/$(FW_NAME).bin
-FW_HEX  = firmware.hex
 
 ifeq ($(suffix $(TEST)),.c)
 FW_SRCS = $(CRT0) $(TEST) $(LIBC)
-CYCLES ?= 10000
 else
 FW_SRCS = $(TEST)
-CYCLES ?= 20
 endif
+CYCLES ?= 5000000
 
-.PHONY: all sim test wave clean compile_commands.json firmware $(FW_HEX)
+.PHONY: all sim test wave clean firmware
 
-all: sim compile_commands.json
+all: sim
 
-sim: $(BUILD)/sim $(FW_HEX)
-	./$(BUILD)/sim $(CYCLES) "$(UART_IN)"
+sim: $(SIM_BIN) $(FW_BIN)
+	$(SIM_BIN) $(FW_BIN) --cycles $(CYCLES) \
+	    --uart-in "$(UART_IN)" \
+	    $(if $(TRACE),--trace) $(if $(VCD),--vcd $(BUILD)/main.vcd)
 
-$(BUILD)/sim: $(CPP) $(MAIN_LIB)
-	c++ $(CXXFLAGS) $(CPP) $(MAIN_LIB) $(RUNTIME_LIB) $(LDFLAGS) -pthread -o $(BUILD)/sim
+$(SIM_BIN): $(SIM_SRCS)
+	cd sim && cargo build --release --quiet
+	@touch $@
 
-compile_commands.json: $(MAIN_LIB)
-	@jq -n --arg dir "$(CURDIR)" --arg file "$(CURDIR)/$(CPP)" \
-	  --arg args "c++ $(CXXFLAGS) $(CPP) $(LDFLAGS) -pthread -o $(BUILD)/sim" \
-	  '[{directory: $$dir, file: $$file, arguments: ($$args | split(" "))}]' > $@
+test:
+	cd sim && cargo test --release
 
-$(MAIN_LIB): $(RTL_SRCS) | $(OBJ_DIR)
-	verilator -Wall -Wno-fatal --cc $(RTL_SRCS) --trace --Mdir $(OBJ_DIR)/$(TOP) --top-module $(TOP) --public -GUART_CLKS_PER_BIT=$(UART_CLKS_PER_BIT)
-	$(MAKE) -C $(OBJ_DIR)/$(TOP) -f V$(TOP).mk
+firmware: $(FW_BIN)
 
-$(OBJ_DIR):
-	mkdir -p $(OBJ_DIR)
-
-# --- firmware build: .s/.c -> .elf -> .bin -> firmware.hex ---
-# firmware.hex is phony so switching TEST always rebuilds it
-firmware: $(FW_HEX)
-
-$(FW_ELF): $(FW_SRCS) | $(BUILD)
+$(FW_ELF): $(FW_SRCS) $(LINK_LD) | $(BUILD)
 	$(RVCC) $(RVCFLAGS) $(RVLDFLAGS) -o $@ $(FW_SRCS) -lgcc
 
-$(FW_HEX): $(FW_ELF)
-	$(RVOBJ) -O binary -j .text -j .rodata -j .srodata -j .data -j .sdata $(FW_ELF) $(FW_BIN)
-	xxd -e -g4 -c4 $(FW_BIN) | awk '{print $$2}' > $(FW_HEX)
+$(FW_BIN): $(FW_ELF)
+	$(RVOBJ) -O binary $(FW_ELF) $(FW_BIN)
 
 $(BUILD):
 	mkdir -p $(BUILD)
 
-test: $(BUILD)/sim
-	@tests/run.sh
-
-wave: sim
+wave:
+	$(MAKE) sim VCD=1
 	gtkwave $(BUILD)/main.vcd &
 
 clean:
-	rm -rf $(BUILD) *.vcd $(FW_HEX)
+	rm -rf $(BUILD) *.vcd

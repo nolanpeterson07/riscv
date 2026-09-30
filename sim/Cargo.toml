@@ -1,0 +1,16 @@
+[package]
+name = "sim"
+version = "0.1.0"
+edition = "2021"
+description = "Simulator and tests for the RISC-V core, in Rust via Marlin (Verilator)"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "sim"
+path = "src/main.rs"
+
+[dependencies]
+marlin = { version = "0.20.3", features = ["verilog"] }
+snafu = "0.8"

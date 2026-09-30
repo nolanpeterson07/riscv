@@ -8,12 +8,7 @@ module mem (
 
     reg [31:0] memory [0:1023];
 
-    // TODO: need to change for real chip
-    initial begin
-        $readmemh("firmware.hex", memory);
-    end
-
-    wire [9:0]  idx  = addr[11:2];   // 1024 words = 4 KiB
+    wire [9:0]  idx  = addr[11:2];
 
     always @(posedge clk) begin
         if (wstrb[0]) memory[idx][7:0]   <= wdata[7:0];
