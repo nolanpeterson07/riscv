@@ -15,14 +15,10 @@ module register (
     assign rs1_data = (rs1_addr == 5'd0) ? 32'd0 : registers[rs1_addr];
     assign rs2_data = (rs2_addr == 5'd0) ? 32'd0 : registers[rs2_addr];
 
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            integer i;
-            for (i = 0; i < 32; i = i + 1)
-                registers[i] <= 32'd0;
-        end else if (rd_write_en && rd_addr != 5'd0) begin
+    // No reset so synthesis can map this to distributed RAM on FPGA
+    always @(posedge clk) begin
+        if (rd_write_en && rd_addr != 5'd0)
             registers[rd_addr] <= rd_data;
-        end
     end
 
 endmodule
