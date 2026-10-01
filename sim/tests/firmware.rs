@@ -6,6 +6,7 @@ const CASES: &[(&str, i32, &str, &str)] = &[
     ("tests/array.c", 0, "", ""),
     ("tests/math.c", 4965, "", ""),
     ("tests/echo.c", 11, "hello riscv\n", "you said: HELLO RISCV"),
+    ("tests/libc.c", 43, "", "-42 beef ok\r\nsorted: 10 20 30 40\r\nriscv32i len 8"),
 ];
 
 /// Builds a program with the Makefile

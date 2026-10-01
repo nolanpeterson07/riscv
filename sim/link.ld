@@ -32,6 +32,10 @@ SECTIONS
         _bss_end = .;
     } > RAM
 
+    /* malloc grows up from here toward the stack */
+    _heap_start = .;
+    end = .;
+
     _stack_top = ORIGIN(RAM) + LENGTH(RAM);
 
     /DISCARD/ : { *(.comment) *(.note .note.*) *(.eh_frame*) }

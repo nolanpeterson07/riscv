@@ -11,14 +11,13 @@ VCD   ?=
 RVCC  = riscv64-unknown-elf-gcc
 RVOBJ = riscv64-unknown-elf-objcopy
 RVFLAGS = -march=rv32i -mabi=ilp32
-RVCFLAGS = $(RVFLAGS) -Isim -O1 -ffreestanding -nostdlib -fno-pic -fno-reorder-functions \
-           -fno-tree-loop-distribute-patterns  # keep gcc from turning memset/memcpy loops into calls to themselves
+RVCFLAGS = $(RVFLAGS) -Isim -O1 -fno-pic -fno-reorder-functions
 LINK_LD = sim/link.ld
-RVLDFLAGS = -nostdlib -Wl,-m,elf32lriscv -T $(LINK_LD)
+RVLDFLAGS = --specs=nano.specs -nostartfiles -Wl,-m,elf32lriscv -Wl,--gc-sections -T $(LINK_LD)
 
 TEST ?= test.s
 CRT0 = sim/crt0.s
-LIBC = sim/lib.c
+LIBC = sim/lib.c sim/syscalls.c
 
 FW_NAME = $(basename $(notdir $(TEST)))
 FW_ELF  = $(BUILD)/$(FW_NAME).elf
@@ -50,7 +49,7 @@ test:
 firmware: $(FW_BIN)
 
 $(FW_ELF): $(FW_SRCS) $(LINK_LD) | $(BUILD)
-	$(RVCC) $(RVCFLAGS) $(RVLDFLAGS) -o $@ $(FW_SRCS) -lgcc
+	$(RVCC) $(RVCFLAGS) $(RVLDFLAGS) -o $@ $(FW_SRCS) -lc -lm -lgcc
 
 $(FW_BIN): $(FW_ELF)
 	$(RVOBJ) -O binary $(FW_ELF) $(FW_BIN)

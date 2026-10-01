@@ -22,5 +22,6 @@ _start:
     addi a0, a0, 4
     j    3b
 
+    # exit() flushes stdio then _exit does ebreak and spins
 4:  call main
-    ebreak
+    call exit
