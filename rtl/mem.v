@@ -6,9 +6,9 @@ module mem (
     output reg  [31:0] data_out
 );
 
-    reg [31:0] memory [0:1023];
+    reg [31:0] memory [0:8191];
 
-    wire [9:0]  idx  = addr[11:2];
+    wire [12:0] idx  = addr[14:2];
 
     always @(posedge clk) begin
         if (wstrb[0]) memory[idx][7:0]   <= wdata[7:0];

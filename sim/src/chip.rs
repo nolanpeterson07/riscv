@@ -114,7 +114,7 @@ pub fn run(image: Vec<u8>, opts: &Options) -> Result<RunResult, Whatever> {
         chip.eval();
         chip.reg_val
     });
-    let ram = (0..1024u16)
+    let ram = (0..8192u16)
         .filter_map(|i| {
             chip.ram_idx = i;
             chip.eval();

@@ -20,7 +20,7 @@ module sim_top (
     output wire        uart_busy,
     input  wire [4:0]  reg_idx,
     output wire [31:0] reg_val,
-    input  wire [9:0]  ram_idx,
+    input  wire [12:0] ram_idx,
     output wire [31:0] ram_val
 );
     main u_main (

@@ -138,10 +138,10 @@ module main #(
 
     // memory map
     //   0x0000_0000  SPI flash (up to 16 MiB, read-only; the CPU starts here)
-    //   0x0100_0000  RAM (4 KiB, up to 0x0100_0FFF)
+    //   0x0100_0000  RAM (32 KiB, up to 0x0100_7FFF)
     //   0x1000_0000  UART: +0 TX (write), +4 STATUS (read: bit0 tx_busy, bit1 rx_valid, bit2 rx_overrun, cleared by reading STATUS), +8 RX (read)
     wire sel_flash = (bus_addr[31:24] == 8'h00);
-    wire sel_ram   = (bus_addr[31:12] == 20'h01000);
+    wire sel_ram   = (bus_addr[31:15] == 17'h00200);
     wire sel_uart  = (bus_addr[31:28] == 4'h1);
 
     wire        flash_store = (state == MEM) & mem_write;
