@@ -30,7 +30,7 @@ FW_SRCS = $(TEST)
 endif
 CYCLES ?= 5000000
 
-.PHONY: all sim test wave clean firmware fpga fpga-load fpga-flash
+.PHONY: all sim test wave clean firmware fpga fpga-load fpga-flash fpga-prog
 
 all: sim
 
@@ -64,20 +64,29 @@ FPGA_SRCS   = $(wildcard rtl/*.v) fpga/top.v
 FPGA_CST    = fpga/tangnano9k.cst
 FPGA_BIT    = $(BUILD)/fpga/top.fs
 
+OSS_CAD ?= $(HOME)/oss-cad-suite
+FPGA_TOOLS = $(if $(wildcard $(OSS_CAD)/bin/nextpnr-himbaechel),$(OSS_CAD)/bin/)
+
 fpga: $(FPGA_BIT)
 
 $(FPGA_BIT): $(FPGA_SRCS) $(FPGA_CST)
 	@mkdir -p $(BUILD)/fpga
-	yosys -q -l $(BUILD)/fpga/yosys.log -p "read_verilog -sv $(FPGA_SRCS); synth_gowin -top top -json $(BUILD)/fpga/top.json"
-	nextpnr-himbaechel --json $(BUILD)/fpga/top.json --write $(BUILD)/fpga/pnr.json --freq 27 \
+	$(FPGA_TOOLS)yosys -q -l $(BUILD)/fpga/yosys.log -p "read_verilog -sv $(FPGA_SRCS); synth_gowin -top top -json $(BUILD)/fpga/top.json"
+	$(FPGA_TOOLS)nextpnr-himbaechel --json $(BUILD)/fpga/top.json --write $(BUILD)/fpga/pnr.json --freq 27 \
 	    --device $(FPGA_DEVICE) --vopt family=$(FPGA_FAMILY) --vopt cst=$(FPGA_CST)
-	gowin_pack -d $(FPGA_FAMILY) -o $@ $(BUILD)/fpga/pnr.json
+	$(FPGA_TOOLS)gowin_pack -d $(FPGA_FAMILY) -o $@ $(BUILD)/fpga/pnr.json
 
+# the program (TEST=...) goes in the external SPI flash the CPU fetches from
 fpga-flash: $(FW_BIN)
-	openFPGALoader -b tangnano9k --external-flash $(FW_BIN)
+	$(FPGA_TOOLS)openFPGALoader -b tangnano9k --external-flash $(FW_BIN)
 
+# the CPU bitstream into FPGA SRAM, gone at power off
 fpga-load: $(FPGA_BIT)
-	openFPGALoader -b tangnano9k $(FPGA_BIT)
+	$(FPGA_TOOLS)openFPGALoader -b tangnano9k $(FPGA_BIT)
+
+# the CPU bitstream into the FPGA's internal flash, loads itself at power on
+fpga-prog: $(FPGA_BIT)
+	$(FPGA_TOOLS)openFPGALoader -b tangnano9k -f $(FPGA_BIT)
 
 wave:
 	$(MAKE) sim VCD=1

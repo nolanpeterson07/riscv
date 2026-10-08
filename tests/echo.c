@@ -9,8 +9,9 @@ int main(void) {
 
     for (;;) {
         c = uart_getc();
-        if (c == '\n' || n == (int)sizeof line - 1)
+        if (c == '\n' || c == '\r' || n == (int)sizeof line - 1)
             break;
+        uart_putc(c);
         line[n++] = c;
     }
     line[n] = '\0';
@@ -19,9 +20,9 @@ int main(void) {
         if (line[i] >= 'a' && line[i] <= 'z')
             line[i] -= 'a' - 'A';
 
-    uart_puts("you said: ");
+    uart_puts("\r\nyou said: ");
     uart_puts(line);
-    uart_putc('\n');
+    uart_puts("\r\n");
 
     return uart_rx_lost ? -1 : n;   // -1 if a byte was lost
 }

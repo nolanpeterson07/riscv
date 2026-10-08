@@ -2,3 +2,5 @@ build/
 *.vcd
 compile_commands.json
 sim/target/
+.DS_Store
+.cache/

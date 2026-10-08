@@ -12,16 +12,21 @@ module top (
 
     // The FPGA doesnt pulse reset at power up, so hold the CPU in reset for a
     // few ms after configuration and while S1 is pressed
+    // rst_n comes straight from a flop: it drives every async clear, and
+    // nextpnr times clear->Q, so logic in front of it lands on the critical path
     reg [1:0]  btn_sync  = 2'b00;
     reg [17:0] por_count = 18'd0;
-    wire       rst_n     = &por_count;
+    reg        rst_n     = 1'b0;
 
     always @(posedge clk) begin
         btn_sync <= {btn_sync[0], btn_rst_n};
-        if (!btn_sync[1])
+        if (!btn_sync[1]) begin
             por_count <= 18'd0;
-        else if (!rst_n)
+            rst_n     <= 1'b0;
+        end else if (!rst_n) begin
             por_count <= por_count + 18'd1;
+            rst_n     <= &por_count;
+        end
     end
 
     main #(
