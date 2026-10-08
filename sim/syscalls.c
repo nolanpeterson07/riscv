@@ -11,12 +11,11 @@ extern int errno;
 extern char _heap_start[];
 
 void _exit(int code) {
-    register int a0 __asm__("a0") = code;
-
     uart_puts("\r\nProgram exited with status code ");
     uart_putdec(code);
     uart_puts("\r\n");
 
+    register int a0 __asm__("a0") = code;
     __asm__ volatile("ebreak" : : "r"(a0));
     for (;;)
         ;
