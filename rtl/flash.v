@@ -40,9 +40,10 @@ module flash #(
     wire [7:0] spi_rx;
     wire       spi_done;
 
-    spi #(.DIV(1)) u_spi (
+    spi u_spi (
         .clk   (clk),
         .rst_n (rst_n),
+        .div   (16'd1),
         .start (spi_start),
         .tx    (out_shift[31:24]),
         .rx    (spi_rx),

@@ -1,11 +1,11 @@
 // SPI master, mode 0, one 8-bit transfer per start pulse, MSB first.
 // Chip select is the caller's job, so a command can span many bytes.
-// sck runs at clk / (2 * DIV).
-module spi #(
-    parameter DIV = 1
-) (
+// sck runs at clk / (2 * div); div >= 1, sampled every sck half period.
+module spi (
     input  wire       clk,
     input  wire       rst_n,
+
+    input  wire [15:0] div,
 
     input  wire       start,   // pulse while !busy
     input  wire [7:0] tx,
@@ -18,10 +18,7 @@ module spi #(
     input  wire       miso
 );
 
-    localparam DW = $clog2(DIV + 1);
-    localparam [DW-1:0] LAST = DIV - 1;
-
-    reg [DW-1:0] div_cnt;
+    reg [15:0]   div_cnt;
     reg [7:0]    out_shift;
     reg [2:0]    bit_cnt;
 
@@ -32,7 +29,7 @@ module spi #(
             done      <= 1'b0;
             sck       <= 1'b0;
             mosi      <= 1'b0;
-            div_cnt   <= {DW{1'b0}};
+            div_cnt   <= 16'd0;
             out_shift <= 8'd0;
             bit_cnt   <= 3'd0;
         end else begin
@@ -43,13 +40,13 @@ module spi #(
                     mosi      <= tx[7];
                     out_shift <= {tx[6:0], 1'b0};
                     bit_cnt   <= 3'd0;
-                    div_cnt   <= {DW{1'b0}};
+                    div_cnt   <= 16'd0;
                     busy      <= 1'b1;
                 end
-            end else if (div_cnt != LAST) begin
+            end else if (div_cnt + 1'b1 < div) begin
                 div_cnt <= div_cnt + 1'b1;
             end else begin
-                div_cnt <= {DW{1'b0}};
+                div_cnt <= 16'd0;
                 sck     <= ~sck;
 
                 // sck falling: sample miso, present the next mosi bit
