@@ -1,10 +1,10 @@
 use marlin::verilog::prelude::*;
 use sim::{chip::runtime, flash::Flash};
 
-#[verilog(src = "../rtl/spi_flash.v", name = "spi_flash")]
-struct SpiFlash;
+#[verilog(src = "../rtl/flash.v", name = "flash")]
+struct Flash_;
 
-fn tick(dut: &mut SpiFlash, flash: &mut Flash) -> bool {
+fn tick(dut: &mut Flash_, flash: &mut Flash) -> bool {
     let sck = dut.sck;
     for clk in [1, 0] {
         dut.clk = clk;
@@ -16,8 +16,8 @@ fn tick(dut: &mut SpiFlash, flash: &mut Flash) -> bool {
 
 #[test]
 fn reads_words_from_flash() {
-    let rt = runtime(&["../rtl/spi_flash.v"]).unwrap();
-    let mut dut: SpiFlash = rt.create_model_simple().unwrap();
+    let rt = runtime(&["../rtl/flash.v", "../rtl/spi.v"]).unwrap();
+    let mut dut: Flash_ = rt.create_model_simple().unwrap();
     let image: Vec<u8> = (0..256u32).map(|i| (i * 37 + 11) as u8).collect();
     let mut flash = Flash::new(image.clone());
 

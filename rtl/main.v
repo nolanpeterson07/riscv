@@ -148,7 +148,7 @@ module main #(
     wire        flash_ready;
     wire [31:0] flash_rdata;
 
-    spi_flash u_flash (
+    flash u_flash (
         .clk     (clk),
         .rst_n   (rst_n),
         .valid   (bus_valid & sel_flash & !flash_store),
