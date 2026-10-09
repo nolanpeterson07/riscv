@@ -25,7 +25,8 @@ module sim_top (
 );
     main u_main (
         .clk(clk), .rst_n(rst_n), .pc_current_out(pc), .uart_tx(uart_tx), .uart_rx(uart_rx),
-        .spi_cs_n(spi_cs_n), .spi_sck(spi_sck), .spi_mosi(spi_mosi), .spi_miso(spi_miso)
+        .spi_cs_n(spi_cs_n), .spi_sck(spi_sck), .spi_mosi(spi_mosi), .spi_miso(spi_miso),
+        .sd_cs_n(), .sd_sck(), .sd_mosi(), .sd_miso(1'b1)
     );
 
     assign uart_clks = u_main.UART_CLKS_PER_BIT;

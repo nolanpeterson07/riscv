@@ -7,6 +7,10 @@ module top (
     output wire       flash_sck,
     output wire       flash_mosi,
     input  wire       flash_miso,
+    output wire       sd_cs_n,
+    output wire       sd_sck,
+    output wire       sd_mosi,
+    input  wire       sd_miso,
     output wire [5:0] led
 );
 
@@ -40,7 +44,11 @@ module top (
         .spi_cs_n      (flash_cs_n),
         .spi_sck       (flash_sck),
         .spi_mosi      (flash_mosi),
-        .spi_miso      (flash_miso)
+        .spi_miso      (flash_miso),
+        .sd_cs_n       (sd_cs_n),
+        .sd_sck        (sd_sck),
+        .sd_mosi       (sd_mosi),
+        .sd_miso       (sd_miso)
     );
 
     assign led = {3'b111, flash_cs_n, uart_tx, ~rst_n};

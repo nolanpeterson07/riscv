@@ -12,7 +12,13 @@ module main #(
     output wire        spi_cs_n,
     output wire        spi_sck,
     output wire        spi_mosi,
-    input  wire        spi_miso
+    input  wire        spi_miso,
+
+    // SD card (SPI mode)
+    output wire        sd_cs_n,
+    output wire        sd_sck,
+    output wire        sd_mosi,
+    input  wire        sd_miso
 );
 
     // FETCH -> EXEC -> FETCH for most instructions
@@ -140,9 +146,11 @@ module main #(
     //   0x0000_0000  SPI flash (up to 16 MiB, read-only; the CPU starts here)
     //   0x0100_0000  RAM (32 KiB, up to 0x0100_7FFF)
     //   0x1000_0000  UART: +0 TX (write), +4 STATUS (read: bit0 tx_busy, bit1 rx_valid, bit2 rx_overrun, cleared by reading STATUS), +8 RX (read)
+    //   0x2000_0000  SDSPI
     wire sel_flash = (bus_addr[31:24] == 8'h00);
     wire sel_ram   = (bus_addr[31:15] == 17'h00200);
     wire sel_uart  = (bus_addr[31:28] == 4'h1);
+    wire sel_sd    = (bus_addr[31:28] == 4'h2);
 
     wire        flash_store = (state == MEM) & mem_write;
     wire        flash_ready;
@@ -234,10 +242,26 @@ module main #(
                              (uart_reg == 4'h8) ? {24'd0, uart_rx_data} :
                              32'd0;
 
+    wire [31:0] sd_rdata;
+
+    sdspi u_sdspi (
+        .clk    (clk),
+        .rst_n  (rst_n),
+        .we     (mem_store & sel_sd),
+        .addr   (bus_addr[3:2]),
+        .wdata  (rs2_data),
+        .rdata  (sd_rdata),
+        .cs_n   (sd_cs_n),
+        .sck    (sd_sck),
+        .mosi   (sd_mosi),
+        .miso   (sd_miso)
+    );
+
     // unmapped addresses read as 0 and stores to them are dropped
     assign bus_rdata = sel_flash ? flash_rdata :
                        sel_ram   ? mem_data_out :
                        sel_uart  ? uart_rdata :
+                       sel_sd    ? sd_rdata :
                        32'd0;
 
     // loads: pick the addressed byte/halfword out of the word, then sign- or zero-extend
