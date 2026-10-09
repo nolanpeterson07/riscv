@@ -67,6 +67,11 @@ FPGA_BIT    = $(BUILD)/fpga/top.fs
 OSS_CAD ?= $(HOME)/oss-cad-suite
 FPGA_TOOLS = $(if $(wildcard $(OSS_CAD)/bin/nextpnr-himbaechel),$(OSS_CAD)/bin/)
 
+# the board's USB chip (a BL702 pretending to be an FTDI) corrupts big JTAG
+# transfers at openFPGALoader's default 6 MHz: CRC failures, then JTAG stuck
+# until a replug
+LOADER = $(FPGA_TOOLS)openFPGALoader -b tangnano9k --freq 2000000
+
 fpga: $(FPGA_BIT)
 
 $(FPGA_BIT): $(FPGA_SRCS) $(FPGA_CST)
@@ -74,19 +79,21 @@ $(FPGA_BIT): $(FPGA_SRCS) $(FPGA_CST)
 	$(FPGA_TOOLS)yosys -q -l $(BUILD)/fpga/yosys.log -p "read_verilog -sv $(FPGA_SRCS); synth_gowin -top top -json $(BUILD)/fpga/top.json"
 	$(FPGA_TOOLS)nextpnr-himbaechel --json $(BUILD)/fpga/top.json --write $(BUILD)/fpga/pnr.json --freq 27 \
 	    --device $(FPGA_DEVICE) --vopt family=$(FPGA_FAMILY) --vopt cst=$(FPGA_CST)
-	$(FPGA_TOOLS)gowin_pack -d $(FPGA_FAMILY) -o $@ $(BUILD)/fpga/pnr.json
+	$(FPGA_TOOLS)gowin_pack -d $(FPGA_FAMILY) --mspi_as_gpio -o $@ $(BUILD)/fpga/pnr.json
 
-# the program (TEST=...) goes in the external SPI flash the CPU fetches from
+# the program (TEST=...) goes in the external SPI flash the CPU fetches from.
+# openFPGALoader resets the FPGA afterwards, which reboots the CPU from the
+# FPGA's internal flash (put it there once with `make fpga-prog`)
 fpga-flash: $(FW_BIN)
-	$(FPGA_TOOLS)openFPGALoader -b tangnano9k --external-flash $(FW_BIN)
+	$(LOADER) --external-flash $(FW_BIN)
 
 # the CPU bitstream into FPGA SRAM, gone at power off
 fpga-load: $(FPGA_BIT)
-	$(FPGA_TOOLS)openFPGALoader -b tangnano9k $(FPGA_BIT)
+	$(LOADER) $(FPGA_BIT)
 
 # the CPU bitstream into the FPGA's internal flash, loads itself at power on
 fpga-prog: $(FPGA_BIT)
-	$(FPGA_TOOLS)openFPGALoader -b tangnano9k -f $(FPGA_BIT)
+	$(LOADER) -f $(FPGA_BIT)
 
 wave:
 	$(MAKE) sim VCD=1

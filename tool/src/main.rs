@@ -1,6 +1,6 @@
 use std::{
     env,
-    fs::{File, OpenOptions},
+    fs::{self, OpenOptions},
     io::{self, Read, Write},
     process::{exit, Command},
     thread,
@@ -24,13 +24,22 @@ fn make(target: &str, vars: &[String]) {
 }
 
 fn monitor(port: &str) {
-    sh("stty", &["-F", port, "9600", "raw", "-echo"]);
-    sh("stty", &["-icanon", "-echo", "-isig"]); // stdin: unbuffered ctrl-c arrives as a byte
-    eprintln!("[monitor {port} @ 9600, ctrl-c to quit]");
-    let mut tx = OpenOptions::new()
+    let rx = OpenOptions::new()
+        .read(true)
         .write(true)
         .open(port)
         .expect("open port");
+    let configured = Command::new("stty")
+        .args(["9600", "raw", "-echo"])
+        .stdin(rx.try_clone().expect("clone port"))
+        .status()
+        .map_or(false, |s| s.success());
+    if !configured {
+        exit(1);
+    }
+    sh("stty", &["-icanon", "-echo", "-isig"]); // stdin: unbuffered ctrl-c arrives as a byte
+    eprintln!("[monitor {port} @ 9600, ctrl-c to quit]");
+    let mut tx = rx.try_clone().expect("clone port");
     thread::spawn(move || {
         for b in io::stdin().bytes().flatten() {
             if b == 3 {
@@ -43,7 +52,21 @@ fn monitor(port: &str) {
             tx.write_all(&[b]).ok();
         }
     });
-    io::copy(&mut File::open(port).expect("open port"), &mut io::stdout()).ok();
+    io::copy(&mut &rx, &mut io::stdout()).ok();
+}
+
+fn default_port() -> String {
+    let mut ports: Vec<String> = fs::read_dir("/dev")
+        .map(|d| {
+            d.flatten()
+                .filter_map(|e| e.file_name().into_string().ok())
+                .filter(|n| n.starts_with("cu.usbserial-"))
+                .map(|n| format!("/dev/{n}"))
+                .collect()
+        })
+        .unwrap_or_default();
+    ports.sort();
+    ports.pop().unwrap_or_else(|| "/dev/ttyUSB1".into())
 }
 
 fn main() {
@@ -52,8 +75,8 @@ fn main() {
     let port = vars
         .iter()
         .find_map(|v| v.strip_prefix("PORT="))
-        .unwrap_or("/dev/ttyUSB1")
-        .to_string();
+        .map(String::from)
+        .unwrap_or_else(default_port);
     let vars: Vec<String> = vars
         .into_iter()
         .filter(|v| !v.starts_with("PORT="))

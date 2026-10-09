@@ -26,7 +26,16 @@ fn reads_words_from_flash() {
     tick(&mut dut, &mut flash);
     dut.rst_n = 1;
     tick(&mut dut, &mut flash);
-    assert_eq!((dut.cs_n, dut.sck), (1, 0), "idle after reset");
+
+    // the flash starts asleep (like after openFPGALoader writes it), so the
+    // controller has to wake it on its own before any read works
+    assert!(flash.asleep);
+    for _ in 0..2000 {
+        tick(&mut dut, &mut flash);
+    }
+    assert_eq!(flash.wakes, 1, "sends the wake command once after reset");
+    assert!(!flash.asleep);
+    assert_eq!((dut.cs_n, dut.sck), (1, 0), "idle after waking");
 
     for addr in [0x00, 0x04, 0x10, 0xfc, 0x42, 0x13]
         .into_iter()
