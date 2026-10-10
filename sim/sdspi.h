@@ -1,6 +1,7 @@
 #ifndef SDSPI_H
 #define SDSPI_H
 
+#include <stdint.h>
 #include <stddef.h>
 
 typedef struct {
@@ -86,6 +87,30 @@ static inline int sdspi_init(sdspi_t *s) {
     // 27 MHz / (2 * 4) = ~3.4 MHz; card allows 25 MHz
     sdspi_set_div(s, 4);
     return ok ? 0 : -1;
+}
+
+static inline int sdspi_read_block(sdspi_t *s, uint32_t lba, uint8_t *buf) {
+    int r = -1;
+
+    sdspi_select(s, 1);
+
+    if (sdspi_cmd(s, 17, lba, 0x01) == 0x00) { // CRC ignored
+        unsigned char t = 0xFF;
+        for (int i = 0; i < 100000 && t == 0xFF; i++)
+            t = sdspi_xfer(s, 0xFF);
+
+        if (t == 0xFE) {
+            for (int i = 0; i < 512; i++)
+                buf[i] = sdspi_xfer(s, 0xFF);
+            sdspi_xfer(s, 0xFF); // discard CRC
+            sdspi_xfer(s, 0xFF);
+            r = 0;
+        }
+    }
+
+    sdspi_select(s, 0);
+    sdspi_xfer(s, 0xFF);
+    return r;
 }
 
 #endif
