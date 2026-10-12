@@ -11,13 +11,13 @@ VCD   ?=
 RVCC  = riscv64-unknown-elf-gcc
 RVOBJ = riscv64-unknown-elf-objcopy
 RVFLAGS = -march=rv32i -mabi=ilp32
-RVCFLAGS = $(RVFLAGS) -Isim -O1 -fno-pic -fno-reorder-functions
+RVCFLAGS = $(RVFLAGS) -Isim -Isim/fatfs/source -O1 -fno-pic -fno-reorder-functions
 LINK_LD = sim/link.ld
 RVLDFLAGS = --specs=nano.specs -nostartfiles -Wl,-m,elf32lriscv -Wl,--gc-sections -T $(LINK_LD)
 
 TEST ?= test.s
 CRT0 = sim/crt0.s
-LIBC = sim/lib.c sim/syscalls.c
+LIBC = sim/lib.c sim/syscalls.c sim/fatfs/source/ff.c sim/fatfs/source/diskio.c
 
 FW_NAME = $(basename $(notdir $(TEST)))
 FW_ELF  = $(BUILD)/$(FW_NAME).elf
