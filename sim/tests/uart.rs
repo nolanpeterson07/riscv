@@ -42,7 +42,7 @@ macro_rules! uart_test {
                 u.rx_data
             }
 
-            let rt = runtime(&["../rtl/uart.v", "hdl/uart_top.sv"]).unwrap();
+            let rt = runtime(&["../rtl/periph/uart.v", "hdl/uart_top.sv"]).unwrap();
             let u: &mut $Model = &mut rt.create_model_simple().unwrap();
             // reset
             (u.rst_n, u.rx) = (0, 1);

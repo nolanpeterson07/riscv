@@ -1,5 +1,5 @@
 // Reads a line from the UART, then prints it back in upper case.
-// Run with: make TEST=tests/echo.c UART_IN='hello riscv\n'
+// Run with: make sim PROG=echo UART_IN='hello riscv\n'
 #include "uart.h"
 
 int main(void) {

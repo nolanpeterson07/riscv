@@ -11,26 +11,27 @@ VCD   ?=
 RVCC  = riscv64-unknown-elf-gcc
 RVOBJ = riscv64-unknown-elf-objcopy
 RVFLAGS = -march=rv32i -mabi=ilp32
-RVCFLAGS = $(RVFLAGS) -Isim -Isim/fatfs/source -O1 -fno-pic -fno-reorder-functions -ffunction-sections -fdata-sections
-LINK_LD = sim/link.ld
+RVCFLAGS = $(RVFLAGS) -Ifw/include -Ifw/lib -Ifw/third_party/fatfs -O1 -fno-pic -fno-reorder-functions -ffunction-sections -fdata-sections
+LINK_LD = fw/link.ld
 RVLDFLAGS = --specs=nano.specs -nostartfiles -Wl,-m,elf32lriscv -Wl,--gc-sections -T $(LINK_LD)
 
-TEST ?= test.s
-CRT0 = sim/crt0.s
-LIBC = sim/lib.c sim/syscalls.c sim/fatfs/source/ff.c sim/fatfs/source/diskio.c
+# PROG=name picks fw/tests/name.c (or .s)
+PROG ?=
+CRT0 = fw/crt0.s
+LIBC = $(wildcard fw/lib/*.c) fw/third_party/fatfs/ff.c
 
-FW_NAME = $(basename $(notdir $(TEST)))
-FW_ELF  = $(BUILD)/$(FW_NAME).elf
-FW_BIN  = $(BUILD)/$(FW_NAME).bin
+FW_SRC = $(firstword $(wildcard fw/tests/$(PROG).c fw/tests/$(PROG).s))
+FW_ELF = $(BUILD)/fw/$(PROG).elf
+FW_BIN = $(BUILD)/fw/$(PROG).bin
 
-ifeq ($(suffix $(TEST)),.c)
-FW_SRCS = $(CRT0) $(TEST) $(LIBC)
+ifeq ($(suffix $(FW_SRC)),.c)
+FW_SRCS = $(CRT0) $(FW_SRC) $(LIBC)
 else
-FW_SRCS = $(TEST)
+FW_SRCS = $(FW_SRC)
 endif
 CYCLES ?= 5000000
 
-.PHONY: all sim test wave clean firmware fpga fpga-load fpga-flash fpga-prog
+.PHONY: all fw sim test fpga load prog flash monitor wave clean
 
 all: sim
 
@@ -46,22 +47,21 @@ $(SIM_BIN): $(SIM_SRCS)
 test:
 	cd sim && cargo test --release
 
-firmware: $(FW_BIN)
+fw: $(FW_BIN)
 
-$(FW_ELF): $(FW_SRCS) $(LINK_LD) | $(BUILD)
+$(FW_ELF): $(FW_SRCS) $(LINK_LD)
+	$(if $(FW_SRC),,$(error no fw/tests/$(PROG).c or .s, set PROG=name))
+	@mkdir -p $(BUILD)/fw
 	$(RVCC) $(RVCFLAGS) $(RVLDFLAGS) -o $@ $(FW_SRCS) -lc -lm -lgcc
 
 $(FW_BIN): $(FW_ELF)
 	$(RVOBJ) -O binary $(FW_ELF) $(FW_BIN)
 
-$(BUILD):
-	mkdir -p $(BUILD)
-
 # --- Tang Nano 9K (OSS CAD Suite: yosys, nextpnr-himbaechel, gowin_pack, openFPGALoader) ---
 FPGA_DEVICE = GW1NR-LV9QN88PC6/I5
 FPGA_FAMILY = GW1N-9C
-FPGA_SRCS   = $(wildcard rtl/*.v) fpga/top.v
-FPGA_CST    = fpga/tangnano9k.cst
+FPGA_SRCS   = $(shell find rtl -name '*.v') fpga/tangnano9k/top.v
+FPGA_CST    = fpga/tangnano9k/tangnano9k.cst
 FPGA_BIT    = $(BUILD)/fpga/top.fs
 
 OSS_CAD ?= $(HOME)/oss-cad-suite
@@ -81,19 +81,25 @@ $(FPGA_BIT): $(FPGA_SRCS) $(FPGA_CST)
 	    --device $(FPGA_DEVICE) --vopt family=$(FPGA_FAMILY) --vopt cst=$(FPGA_CST)
 	$(FPGA_TOOLS)gowin_pack -d $(FPGA_FAMILY) --mspi_as_gpio -o $@ $(BUILD)/fpga/pnr.json
 
-# the program (TEST=...) goes in the external SPI flash the CPU fetches from.
+# the program (PROG=...) goes in the external SPI flash the CPU fetches from.
 # openFPGALoader resets the FPGA afterwards, which reboots the CPU from the
-# FPGA's internal flash (put it there once with `make fpga-prog`)
-fpga-flash: $(FW_BIN)
+# FPGA's internal flash (put it there once with `make prog`)
+flash: $(FW_BIN)
 	$(LOADER) --external-flash $(FW_BIN)
 
 # the CPU bitstream into FPGA SRAM, gone at power off
-fpga-load: $(FPGA_BIT)
+load: $(FPGA_BIT)
 	$(LOADER) $(FPGA_BIT)
 
 # the CPU bitstream into the FPGA's internal flash, loads itself at power on
-fpga-prog: $(FPGA_BIT)
+prog: $(FPGA_BIT)
 	$(LOADER) -f $(FPGA_BIT)
+
+PORT ?= /dev/ttyUSB1
+
+# serial monitor on the board's uart, ctrl-c to quit
+monitor:
+	cd sim && cargo run --release --quiet --bin monitor -- $(PORT)
 
 wave:
 	$(MAKE) sim VCD=1

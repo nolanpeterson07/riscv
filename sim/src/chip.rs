@@ -56,13 +56,20 @@ struct SimTop;
 
 /// Runs `image` until ebreak or `opts.max_cycles`.
 pub fn run(image: Vec<u8>, opts: &Options) -> Result<RunResult, Whatever> {
-    let mut sources: Vec<PathBuf> =
-        std::fs::read_dir(Path::new(env!("CARGO_MANIFEST_DIR")).join("../rtl"))
-            .whatever_context("can't read rtl/")?
-            .filter_map(|e| {
-                Some(e.ok()?.path()).filter(|p| p.extension().is_some_and(|x| x == "v"))
-            })
-            .collect();
+    // every .v under rtl/, one level of subfolders deep
+    let rtl = Path::new(env!("CARGO_MANIFEST_DIR")).join("../rtl");
+    let ls = |dir: &Path| -> Vec<PathBuf> {
+        std::fs::read_dir(dir)
+            .map(|d| d.flatten().map(|e| e.path()).collect())
+            .unwrap_or_default()
+    };
+    let top = ls(&rtl);
+    let mut sources: Vec<PathBuf> = top
+        .iter()
+        .flat_map(|p| if p.is_dir() { ls(p) } else { vec![p.clone()] })
+        .filter(|p| p.extension().is_some_and(|x| x == "v"))
+        .collect();
+    snafu::ensure_whatever!(!sources.is_empty(), "no .v files under rtl/");
     sources.sort();
     sources.push("hdl/sim_top.sv".into());
     let rt = runtime(&sources)?;
