@@ -11,7 +11,7 @@ VCD   ?=
 RVCC  = riscv64-unknown-elf-gcc
 RVOBJ = riscv64-unknown-elf-objcopy
 RVFLAGS = -march=rv32i -mabi=ilp32
-RVCFLAGS = $(RVFLAGS) -Isim -Isim/fatfs/source -O1 -fno-pic -fno-reorder-functions
+RVCFLAGS = $(RVFLAGS) -Isim -Isim/fatfs/source -O1 -fno-pic -fno-reorder-functions -ffunction-sections -fdata-sections
 LINK_LD = sim/link.ld
 RVLDFLAGS = --specs=nano.specs -nostartfiles -Wl,-m,elf32lriscv -Wl,--gc-sections -T $(LINK_LD)
 
