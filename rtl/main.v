@@ -38,7 +38,11 @@ module main #(
     wire [31:0] bus_rdata;
     wire        bus_fire  = bus_valid & bus_ready;
 
-    wire finish = (state == EXEC && !is_mem) || (state == MEM && bus_ready);   // last cycle of the instruction
+    wire is_muldiv;
+    wire md_done;
+    wire md_wait = is_muldiv & !md_done;
+
+    wire finish = (state == EXEC && !is_mem && !md_wait) || (state == MEM && bus_ready);   // last cycle of the instruction
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n)
@@ -108,7 +112,8 @@ module main #(
         .mem_write(mem_write),
         .mem_to_reg(mem_to_reg),
         .branch(branch),
-        .jump(jump)
+        .jump(jump),
+        .is_muldiv(is_muldiv)
     );
 
     always @(posedge clk or negedge rst_n) begin
@@ -116,7 +121,7 @@ module main #(
             state <= FETCH;
         else case (state)
             FETCH:   if (bus_ready) state <= EXEC;
-            EXEC:    state <= is_mem ? MEM : FETCH;
+            EXEC:    if (!md_wait) state <= is_mem ? MEM : FETCH;
             MEM:     if (bus_ready) state <= FETCH;
             default: state <= FETCH;
         endcase
@@ -138,6 +143,19 @@ module main #(
         .op(alu_op),
         .result(alu_result),
         .zero(alu_zero)
+    );
+
+    wire [31:0] md_result;
+
+    muldiv u_muldiv (
+        .clk   (clk),
+        .rst_n (rst_n),
+        .start (state == EXEC && is_muldiv),
+        .funct3(funct3),
+        .a     (rs1_data),
+        .b     (rs2_data),
+        .result(md_result),
+        .done  (md_done)
     );
 
     wire [31:0] mem_data_out;
@@ -310,6 +328,7 @@ module main #(
 
     assign rd_data = jump       ? pc_plus4 :
                      mem_to_reg ? load_value :
+                     is_muldiv  ? md_result :
                      alu_result;
 
 endmodule

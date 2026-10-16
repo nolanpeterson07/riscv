@@ -9,7 +9,8 @@ module control_unit(
     output reg        mem_write,
     output reg        mem_to_reg,
     output reg        branch,
-    output reg        jump
+    output reg        jump,
+    output wire       is_muldiv
 );
 
     localparam R_TYPE   = 7'b0110011;
@@ -21,6 +22,8 @@ module control_unit(
     localparam U_LUI    = 7'b0110111;
     localparam U_AUIPC  = 7'b0010111;
     localparam J_JAL    = 7'b1101111;
+
+    assign is_muldiv = (opcode == R_TYPE) && (funct7 == 7'b0000001);
 
     localparam ADD = 4'b0000;
     localparam SUB = 4'b0001;
