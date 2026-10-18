@@ -30,7 +30,7 @@ pub struct Options {
 impl Default for Options {
     fn default() -> Options {
         Options {
-            max_cycles: 5_000_000,
+            max_cycles: u64::MAX,
             uart_in: vec![],
             trace: false,
             vcd: None,

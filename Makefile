@@ -31,14 +31,13 @@ FW_SRCS = $(FW_SRC) $(CRT0) $(wildcard fw/rust/src/*.rs)
 else
 FW_SRCS = $(FW_SRC)
 endif
-CYCLES ?= 5000000
 
 .PHONY: all fw sim test fpga load prog flash monitor wave clean
 
 all: sim
 
 sim: $(SIM_BIN) $(FW_BIN)
-	$(SIM_BIN) $(FW_BIN) --cycles $(CYCLES) \
+	$(SIM_BIN) $(FW_BIN) \
 	    --uart-in "$(UART_IN)" \
 	    $(if $(TRACE),--trace) $(if $(VCD),--vcd $(BUILD)/main.vcd)
 

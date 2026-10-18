@@ -165,10 +165,12 @@ module main #(
     //   0x0100_0000  RAM (32 KiB, up to 0x0100_7FFF)
     //   0x1000_0000  UART: +0 TX (write), +4 STATUS (read: bit0 tx_busy, bit1 rx_valid, bit2 rx_overrun, cleared by reading STATUS), +8 RX (read)
     //   0x2000_0000  SDSPI
+    //   0x3000_0000  Timer
     wire sel_flash = (bus_addr[31:24] == 8'h00);
     wire sel_ram   = (bus_addr[31:15] == 17'h00200);
     wire sel_uart  = (bus_addr[31:28] == 4'h1);
     wire sel_sd    = (bus_addr[31:28] == 4'h2);
+    wire sel_timer = (bus_addr[31:28] == 4'h3);
 
     wire        flash_store = (state == MEM) & mem_write;
     wire        flash_ready;
@@ -275,11 +277,22 @@ module main #(
         .miso   (sd_miso)
     );
 
+    wire [31:0] timer_rdata;
+
+    timer u_timer (
+        .clk   (clk),
+        .rst_n (rst_n),
+        .rd_lo (mem_load & sel_timer & (bus_addr[3:0] == 4'h0)),
+        .addr  (bus_addr[2]),
+        .rdata (timer_rdata)
+    );
+
     // unmapped addresses read as 0 and stores to them are dropped
     assign bus_rdata = sel_flash ? flash_rdata :
                        sel_ram   ? mem_data_out :
                        sel_uart  ? uart_rdata :
                        sel_sd    ? sd_rdata :
+                       sel_timer ? timer_rdata :
                        32'd0;
 
     // loads: pick the addressed byte/halfword out of the word, then sign- or zero-extend
