@@ -1,0 +1,6 @@
+[build]
+target = "riscv32im-unknown-none-elf"
+target-dir = "../../build/rust"
+
+[target.riscv32im-unknown-none-elf]
+runner = "../../build/cargo/release/fwrun"

@@ -1,0 +1,19 @@
+[package]
+name = "rvtest"
+version = "0.1.0"
+edition = "2021"
+description = "Rust programs (examples/) for the RISC-V core, on the board or in the simulator"
+
+[lib]
+test = false
+doctest = false
+
+# programs are examples: examples/<name>.rs, cargo run --example <name>
+
+[profile.dev]
+panic = "abort"
+opt-level = "s"
+
+[profile.release]
+panic = "abort"
+opt-level = "s"

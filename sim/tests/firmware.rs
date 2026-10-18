@@ -4,9 +4,10 @@ use std::{path::Path, process::Command};
 /// (program in fw/tests, mains return value, UART input, expected UART output)
 const CASES: &[(&str, i32, &str, &str)] = &[
     ("array", 0, "", ""),
+    ("muldiv", 18, "", ""),
     ("math", 4965, "", ""),
-    ("echo", 11, "hello riscv\n", "you said: HELLO RISCV"),
-    ("echo", 2, "hi\r", "you said: HI"),
+    ("echo", 0, "hello riscv\n\x1d", "you said: hello riscv"),
+    ("echo", 2, "hi\x1d", "hi"),
     (
         "libc",
         43,

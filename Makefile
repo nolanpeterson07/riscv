@@ -10,22 +10,24 @@ VCD   ?=
 # --- RISC-V toolchain ---
 RVCC  = riscv64-unknown-elf-gcc
 RVOBJ = riscv64-unknown-elf-objcopy
-RVFLAGS = -march=rv32i -mabi=ilp32
+RVFLAGS = -march=rv32im -mabi=ilp32
 RVCFLAGS = $(RVFLAGS) -Ifw/include -Ifw/lib -Ifw/third_party/fatfs -O1 -fno-pic -fno-reorder-functions -ffunction-sections -fdata-sections
 LINK_LD = fw/link.ld
 RVLDFLAGS = --specs=nano.specs -nostartfiles -Wl,-m,elf32lriscv -Wl,--gc-sections -T $(LINK_LD)
 
-# PROG=name picks fw/tests/name.c (or .s)
+# PROG=name picks fw/tests/name.c (or .s), else the Rust fw/rust/examples/name.rs
 PROG ?=
 CRT0 = fw/crt0.s
 LIBC = $(wildcard fw/lib/*.c) fw/third_party/fatfs/ff.c
 
-FW_SRC = $(firstword $(wildcard fw/tests/$(PROG).c fw/tests/$(PROG).s))
+FW_SRC = $(firstword $(wildcard fw/tests/$(PROG).c fw/tests/$(PROG).s fw/rust/examples/$(PROG).rs))
 FW_ELF = $(BUILD)/fw/$(PROG).elf
 FW_BIN = $(BUILD)/fw/$(PROG).bin
 
 ifeq ($(suffix $(FW_SRC)),.c)
 FW_SRCS = $(CRT0) $(FW_SRC) $(LIBC)
+else ifeq ($(suffix $(FW_SRC)),.rs)
+FW_SRCS = $(FW_SRC) $(CRT0) $(wildcard fw/rust/src/*.rs)
 else
 FW_SRCS = $(FW_SRC)
 endif
@@ -50,9 +52,14 @@ test:
 fw: $(FW_BIN)
 
 $(FW_ELF): $(FW_SRCS) $(LINK_LD)
-	$(if $(FW_SRC),,$(error no fw/tests/$(PROG).c or .s, set PROG=name))
+	$(if $(FW_SRC),,$(error no fw/tests/$(PROG).c/.s or fw/rust/examples/$(PROG).rs, set PROG=name))
 	@mkdir -p $(BUILD)/fw
+ifeq ($(suffix $(FW_SRC)),.rs)
+	cd fw/rust && cargo build --release --example $(PROG)
+	cp $(BUILD)/rust/riscv32im-unknown-none-elf/release/examples/$(PROG) $@
+else
 	$(RVCC) $(RVCFLAGS) $(RVLDFLAGS) -o $@ $(FW_SRCS) -lc -lm -lgcc
+endif
 
 $(FW_BIN): $(FW_ELF)
 	$(RVOBJ) -O binary $(FW_ELF) $(FW_BIN)
@@ -76,7 +83,7 @@ fpga: $(FPGA_BIT)
 
 $(FPGA_BIT): $(FPGA_SRCS) $(FPGA_CST)
 	@mkdir -p $(BUILD)/fpga
-	$(FPGA_TOOLS)yosys -q -l $(BUILD)/fpga/yosys.log -p "read_verilog -sv $(FPGA_SRCS); synth_gowin -top top -json $(BUILD)/fpga/top.json"
+	$(FPGA_TOOLS)yosys -q -l $(BUILD)/fpga/yosys.log -p "read_verilog -sv $(FPGA_SRCS); synth_gowin -nodsp -top top -json $(BUILD)/fpga/top.json"
 	$(FPGA_TOOLS)nextpnr-himbaechel --json $(BUILD)/fpga/top.json --write $(BUILD)/fpga/pnr.json --freq 27 \
 	    --device $(FPGA_DEVICE) --vopt family=$(FPGA_FAMILY) --vopt cst=$(FPGA_CST)
 	$(FPGA_TOOLS)gowin_pack -d $(FPGA_FAMILY) --mspi_as_gpio -o $@ $(BUILD)/fpga/pnr.json
