@@ -165,7 +165,7 @@ module main #(
     //   0x0100_0000  RAM (32 KiB, up to 0x0100_7FFF)
     //   0x1000_0000  UART: +0 TX (write), +4 STATUS (read: bit0 tx_busy, bit1 rx_valid, bit2 rx_overrun, cleared by reading STATUS), +8 RX (read)
     //   0x2000_0000  SDSPI
-    //   0x3000_0000  Timer
+    //   0x3000_0000  Timer: +0 count lo (read, latches hi), +4 count hi (latched), +8/+C mtimecmp lo/hi
     wire sel_flash = (bus_addr[31:24] == 8'h00);
     wire sel_ram   = (bus_addr[31:15] == 17'h00200);
     wire sel_uart  = (bus_addr[31:28] == 4'h1);
@@ -278,13 +278,17 @@ module main #(
     );
 
     wire [31:0] timer_rdata;
+    wire        mtip;
 
     timer u_timer (
         .clk   (clk),
         .rst_n (rst_n),
-        .rd_lo (mem_load & sel_timer & (bus_addr[3:0] == 4'h0)),
-        .addr  (bus_addr[2]),
-        .rdata (timer_rdata)
+        .rd_lo (mem_load & sel_timer & (bus_addr[3:2] == 2'd0)),
+        .we    (mem_store & sel_timer),
+        .addr  (bus_addr[3:2]),
+        .wdata (rs2_data),
+        .rdata (timer_rdata),
+        .mtip  (mtip)
     );
 
     // unmapped addresses read as 0 and stores to them are dropped
