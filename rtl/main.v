@@ -39,6 +39,9 @@ module main #(
     wire        bus_fire  = bus_valid & bus_ready;
 
     wire is_muldiv;
+    wire is_csr, csr_use_imm;
+    // TODO
+    wire [31:0] csr_rdata = 32'd0;
     wire md_done;
     wire md_wait = is_muldiv & !md_done;
 
@@ -70,6 +73,8 @@ module main #(
     wire [4:0]  rs2;
     wire [4:0]  rd;
     wire [31:0] imm;
+    wire [11:0] csr_addr;
+    wire [4:0]  zimm;
 
     assign inst = instr;
 
@@ -81,7 +86,9 @@ module main #(
         .rs1(rs1),
         .rs2(rs2),
         .rd(rd),
-        .imm(imm)
+        .imm(imm),
+        .csr_addr(csr_addr),
+        .zimm(zimm)
     );
 
     wire [31:0] rs1_data, rs2_data;
@@ -113,7 +120,9 @@ module main #(
         .mem_to_reg(mem_to_reg),
         .branch(branch),
         .jump(jump),
-        .is_muldiv(is_muldiv)
+        .is_muldiv(is_muldiv),
+        .is_csr(is_csr),
+        .csr_use_imm(csr_use_imm)
     );
 
     always @(posedge clk or negedge rst_n) begin
@@ -346,6 +355,7 @@ module main #(
     assign rd_data = jump       ? pc_plus4 :
                      mem_to_reg ? load_value :
                      is_muldiv  ? md_result :
+                     is_csr     ? csr_rdata :
                      alu_result;
 
 endmodule

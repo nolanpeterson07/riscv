@@ -10,7 +10,9 @@ module control_unit(
     output reg        mem_to_reg,
     output reg        branch,
     output reg        jump,
-    output wire       is_muldiv
+    output wire       is_muldiv,
+    output wire       is_csr,
+    output wire       csr_use_imm
 );
 
     localparam R_TYPE   = 7'b0110011;
@@ -22,7 +24,10 @@ module control_unit(
     localparam U_LUI    = 7'b0110111;
     localparam U_AUIPC  = 7'b0010111;
     localparam J_JAL    = 7'b1101111;
+    localparam SYSTEM   = 7'b1110011;
 
+    assign is_csr      = (opcode == SYSTEM) && (funct3 != 3'b000);   // funct3 0 is ecall/ebreak/mret
+    assign csr_use_imm = funct3[2];
     assign is_muldiv = (opcode == R_TYPE) && (funct7 == 7'b0000001);
 
     localparam ADD = 4'b0000;
@@ -167,6 +172,8 @@ module control_unit(
                 jump       = 1;
                 alu_op     = ADD;  // dont care
             end
+            SYSTEM: reg_write = is_csr;   // rd <- old CSR value
+
             default: ;
         endcase
     end

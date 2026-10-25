@@ -7,7 +7,9 @@ module decoder (
     output wire [4:0]  rs1,
     output wire [4:0]  rs2,
     output wire [4:0]  rd,
-    output wire [31:0] imm
+    output wire [31:0] imm,
+    output wire [11:0] csr_addr,
+    output wire [4:0]  zimm
 );
 
     assign opcode = inst[6:0];
@@ -16,6 +18,8 @@ module decoder (
     assign rs1 = inst[19:15];
     assign rs2 = inst[24:20];
     assign funct7 = inst[31:25];
+    assign csr_addr = inst[31:20];
+    assign zimm = inst[19:15];
 
     localparam R_TYPE   = 7'b0110011; // default case; everything above already sets it
     localparam I_ARITH  = 7'b0010011;
